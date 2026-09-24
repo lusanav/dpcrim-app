@@ -1,22 +1,59 @@
 const express = require('express');
 const QRCode = require('qrcode');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Banco de dados em memória
-const credenciaisDB = new Map();
-const usuariosDB = new Map();
+// Chave Mestra Criptográfica (Camada Extremamente Segura)
+const CHAVE_SECRETA = process.env.SECRET_KEY || 'DPCRIM_CHAVE_MESTRA_SEGURA_2026_HMAC_SHA256';
 
+// Bancos de Dados em Memória
+const membrosDB = new Map();   // Armazena os filiados pelo CPF limpo
+const usuariosDB = new Map();  // Armazena usuários do sistema (Admins)
+
+// Criar Administrador Padrão Inicial
+usuariosDB.set('admin@dpcrim.org', {
+  id: uuidv4(),
+  nome: 'Diretoria DPCRIM',
+  email: 'admin@dpcrim.org',
+  senha: 'admin' // Altere no primeiro acesso
+});
+
+// FUNÇÕES DE SEGURANÇA E CRIPTOGRAFIA
 function mascararCPF(cpf) {
   const limpo = (cpf || '').replace(/\D/g, '');
   if (limpo.length !== 11) return '***.***.***-**';
   return `${limpo.substring(0, 3)}.***.***-${limpo.substring(9)}`;
 }
 
-// PÁGINA PRINCIPAL - FORMULÁRIO DE CADASTRO COMPLETO
+function gerarTokenSeguro(cpf) {
+  const cpfLimpo = (cpf || '').replace(/\D/g, '');
+  const timestamp = Date.now();
+  const payload = `${cpfLimpo}:${timestamp}`;
+  const hmac = crypto.createHmac('sha256', CHAVE_SECRETA).update(payload).digest('hex');
+  return Buffer.from(`${payload}:${hmac}`).toString('base64url');
+}
+
+function validarTokenSeguro(tokenBase64) {
+  try {
+    const decodificado = Buffer.from(tokenBase64, 'base64url').toString('utf8');
+    const [cpfLimpo, timestamp, hmacRecebido] = decodificado.split(':');
+    const payload = `${cpfLimpo}:${timestamp}`;
+    const hmacEsperado = crypto.createHmac('sha256', CHAVE_SECRETA).update(payload).digest('hex');
+
+    if (hmacRecebido !== hmacEsperado) return null; // Detecta tentativas de adulteração
+    return cpfLimpo;
+  } catch (e) {
+    return null;
+  }
+}
+
+// ==========================================
+// 1. PÁGINA INICIAL: LOGIN RESTRITO PARA ADMINS
+// ==========================================
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -24,133 +61,105 @@ app.get('/', (req, res) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>DPCRIM - Cadastro do Perito</title>
+      <title>DPCRIM - Acesso Restrito</title>
       <script src="https://cdn.tailwindcss.com"></script>
     </head>
-    <body class="bg-slate-100 p-3 sm:p-6 font-sans text-slate-800">
-      <div class="max-w-2xl mx-auto bg-white p-6 rounded-2xl shadow-xl border border-slate-200">
-        
-        <!-- Cabeçalho -->
-        <div class="bg-slate-900 text-white p-5 rounded-xl text-center mb-6 shadow">
-          <h1 class="text-2xl font-bold tracking-wide uppercase">DPCRIM</h1>
-          <p class="text-xs text-slate-300 mt-1">Cadastro de Profissionais e Emissão de Credenciais</p>
+    <body class="bg-slate-900 min-h-screen flex items-center justify-center p-4 font-sans">
+      
+      <div class="max-w-md w-full bg-white p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-700">
+        <div class="text-center mb-6">
+          <div class="bg-red-700 text-white font-black text-xl py-3 px-6 rounded-xl inline-block shadow">DPCRIM</div>
+          <h1 class="text-sm font-bold text-slate-800 uppercase tracking-wider mt-3">Painel Administrativo</h1>
+          <p class="text-xs text-slate-500">Acesso exclusivo para administradores e operadores</p>
         </div>
 
-        <!-- FORMULÁRIO DE CADASTRO COMPLETO -->
-        <form id="formCadastro" class="space-y-6">
-          
-          <!-- SEÇÃO 1: DADOS PESSOAIS -->
-          <div class="border-b pb-4">
-            <h2 class="text-xs font-bold text-slate-900 uppercase tracking-wide mb-3 flex items-center">
-              <span class="w-2.5 h-2.5 bg-red-700 rounded-full inline-block mr-2"></span> 1. Dados Pessoais e Documentos
-            </h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div class="sm:col-span-2">
-                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Nome Completo *</label>
-                <input type="text" id="nomePessoa" required placeholder="Ex: Dr. Carlos Eduardo Silva" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-slate-900">
-              </div>
-              <div>
-                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">CPF *</label>
-                <input type="text" id="cpf" required placeholder="123.456.789-00" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-slate-900">
-              </div>
-              <div>
-                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">RG / Órgão Expedidor</label>
-                <input type="text" id="rg" placeholder="12.345.678-X SSP/SP" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-slate-900">
-              </div>
-              <div>
-                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Data de Nascimento</label>
-                <input type="date" id="dataNascimento" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-slate-900">
-              </div>
-              <div>
-                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Foto do Perito</label>
-                <input type="file" id="fotoInput" accept="image/*" class="w-full p-2 border rounded-xl bg-slate-50 text-xs text-slate-500">
-              </div>
-            </div>
-          </div>
-
-          <!-- SEÇÃO 2: CONTATO E ENDEREÇO -->
-          <div class="border-b pb-4">
-            <h2 class="text-xs font-bold text-slate-900 uppercase tracking-wide mb-3 flex items-center">
-              <span class="w-2.5 h-2.5 bg-red-700 rounded-full inline-block mr-2"></span> 2. Contato e Localização
-            </h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">E-mail</label>
-                <input type="email" id="email" placeholder="perito@exemplo.com" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-slate-900">
-              </div>
-              <div>
-                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Telefone / WhatsApp</label>
-                <input type="tel" id="telefone" placeholder="(11) 98765-4321" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-slate-900">
-              </div>
-              <div class="sm:col-span-2">
-                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Cidade / Estado</label>
-                <input type="text" id="cidadeEstado" placeholder="São Paulo / SP" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-slate-900">
-              </div>
-            </div>
-          </div>
-
-          <!-- SEÇÃO 3: CURSO E CREDENCIAL -->
+        <!-- FORMULÁRIO DE LOGIN -->
+        <form id="formLogin" class="space-y-4">
           <div>
-            <h2 class="text-xs font-bold text-slate-900 uppercase tracking-wide mb-3 flex items-center">
-              <span class="w-2.5 h-2.5 bg-red-700 rounded-full inline-block mr-2"></span> 3. Curso e Registro
-            </h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div class="sm:col-span-2">
-                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Curso / Especialidade *</label>
-                <input type="text" id="nomeCurso" required placeholder="Ex: Perícia Forense Computacional" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-slate-900">
-              </div>
-              <div>
-                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Carga Horária (Horas)</label>
-                <input type="number" id="cargaHoraria" placeholder="120" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-slate-900">
-              </div>
-              <div>
-                <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Data de Validade (Opcional)</label>
-                <input type="date" id="dataValidade" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-slate-900">
-              </div>
-            </div>
+            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">E-mail Administrativo</label>
+            <input type="email" id="email" required placeholder="admin@dpcrim.org" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
           </div>
-
-          <button type="submit" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-4 rounded-xl text-sm tracking-wide shadow-md transition uppercase mt-4">
-            SALVAR CADASTRO E GERAR CREDENCIAL
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Senha de Segurança</label>
+            <input type="password" id="senha" required placeholder="••••••••" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
+          </div>
+          <button type="submit" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3.5 rounded-xl text-sm shadow-md transition uppercase">
+            ENTRAR NO PAINEL
           </button>
         </form>
 
-        <!-- RESULTADO DO CADASTRO -->
-        <div id="resultado" class="mt-8 hidden space-y-6 border-t pt-6">
-          <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl text-center text-xs font-bold">
-            ✅ Cadastro salvo e credencial gerada com sucesso!
+        <div class="mt-6 border-t pt-4 text-center">
+          <a href="/filiados" class="text-xs text-slate-600 hover:text-red-700 font-bold underline">
+            🔍 Ir para a Consulta Pública de Filiados
+          </a>
+        </div>
+      </div>
+
+      <!-- PAINEL DE CADASTRO (EXIBIDO APÓS AUTENTICAÇÃO) -->
+      <div id="painelAdmin" class="hidden fixed inset-0 bg-slate-100 overflow-y-auto p-4 sm:p-6">
+        <div class="max-w-3xl mx-auto bg-white p-6 rounded-2xl shadow-xl border border-slate-200">
+          <div class="flex justify-between items-center bg-slate-900 text-white p-4 rounded-xl mb-6">
+            <div>
+              <h2 class="font-bold text-lg">DPCRIM • Painel Interno</h2>
+              <p class="text-xs text-slate-300">Emissão de Credenciais e Gestão de Membros</p>
+            </div>
+            <button onclick="location.reload()" class="bg-red-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold">SAIR</button>
           </div>
 
-          <!-- Cartão da Credencial -->
-          <div class="max-w-sm mx-auto bg-slate-900 text-white rounded-2xl p-5 shadow-xl relative overflow-hidden border border-slate-700">
-            <div class="bg-red-700 text-[9px] font-bold px-2 py-0.5 rounded w-max uppercase mb-3">DPCRIM • Credencial</div>
-            <div class="flex space-x-3 items-center">
-              <img id="resFoto" src="" class="w-16 h-20 bg-slate-800 rounded object-cover border border-slate-700">
-              <div class="text-xs space-y-1">
-                <p id="resNome" class="font-bold text-white"></p>
-                <p id="resCPF" class="text-slate-300"></p>
-                <p id="resCurso" class="text-red-300 font-semibold"></p>
+          <form id="formCadastroMembro" class="space-y-6">
+            <div class="border-b pb-4">
+              <h3 class="text-xs font-bold uppercase text-slate-800 mb-3">1. Dados do Membro Filiado</h3>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="sm:col-span-2">
+                  <label class="block text-xs font-bold text-slate-700 mb-1">NOME COMPLETO *</label>
+                  <input type="text" id="cadNome" required placeholder="Ex: Dr. Carlos Eduardo Silva" class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">CPF *</label>
+                  <input type="text" id="cadCPF" required placeholder="123.456.789-00" class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">RG / ÓRGÃO EXPEDIDOR</label>
+                  <input type="text" id="cadRG" placeholder="12.345.678-X SSP/SP" class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm">
+                </div>
               </div>
             </div>
-            <div class="mt-3 pt-2 border-t border-slate-800 text-[10px] text-slate-400 flex justify-between">
-              <span>REGISTRO: <strong id="resCodigo" class="text-white"></strong></span>
-              <span id="resValidade"></span>
-            </div>
-          </div>
 
-          <!-- QR Code de Validação -->
-          <div class="text-center bg-slate-50 p-4 rounded-xl border max-w-sm mx-auto">
-            <p class="text-xs font-bold text-slate-700 mb-2">QR Code de Autenticidade Oficial</p>
+            <div>
+              <h3 class="text-xs font-bold uppercase text-slate-800 mb-3">2. Curso e Especialização</h3>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="sm:col-span-2">
+                  <label class="block text-xs font-bold text-slate-700 mb-1">CURSO / ESPECIALIDADE *</label>
+                  <input type="text" id="cadCurso" required placeholder="Ex: Perícia Forense Computacional" class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">CARGA HORÁRIA (HORAS)</label>
+                  <input type="number" id="cadCarga" placeholder="120" class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">FOTO DO PERITO</label>
+                  <input type="file" id="cadFoto" accept="image/*" class="w-full p-1 border rounded-lg bg-slate-50 text-xs">
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl text-sm uppercase shadow">
+              CADASTRAR E EMITIR CREDENCIAL
+            </button>
+          </form>
+
+          <div id="resCadastro" class="mt-6 hidden border-t pt-4 text-center space-y-4">
+            <p class="text-emerald-700 font-bold text-sm">✅ Perito cadastrado com sucesso!</p>
+            <div id="cardCredencial" class="max-w-sm mx-auto bg-slate-900 text-white p-4 rounded-xl text-left border"></div>
             <img id="resQR" src="" class="w-32 h-32 mx-auto border p-1 bg-white rounded-lg">
           </div>
         </div>
-
       </div>
 
       <script>
         let fotoBase64 = '';
 
-        document.getElementById('fotoInput').addEventListener('change', (e) => {
+        document.getElementById('cadFoto')?.addEventListener('change', (e) => {
           const file = e.target.files[0];
           if (file) {
             const reader = new FileReader();
@@ -159,38 +168,52 @@ app.get('/', (req, res) => {
           }
         });
 
-        document.getElementById('formCadastro').addEventListener('submit', async (e) => {
+        // Validação de Login
+        document.getElementById('formLogin').addEventListener('submit', async (e) => {
           e.preventDefault();
-          const payload = {
-            nomePessoa: document.getElementById('nomePessoa').value,
-            cpf: document.getElementById('cpf').value,
-            rg: document.getElementById('rg').value,
-            dataNascimento: document.getElementById('dataNascimento').value,
-            email: document.getElementById('email').value,
-            telefone: document.getElementById('telefone').value,
-            cidadeEstado: document.getElementById('cidadeEstado').value,
-            nomeCurso: document.getElementById('nomeCurso').value,
-            cargaHoraria: document.getElementById('cargaHoraria').value,
-            dataValidade: document.getElementById('dataValidade').value,
-            fotoBase64: fotoBase64
-          };
-
-          const res = await fetch('/api/cadastrar', {
+          const res = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+              email: document.getElementById('email').value,
+              senha: document.getElementById('senha').value
+            })
+          });
+          const data = await res.json();
+          if (data.success) {
+            document.getElementById('painelAdmin').classList.remove('hidden');
+          } else {
+            alert('Acesso negado: E-mail ou senha inválidos.');
+          }
+        });
+
+        // Submissão do Cadastro
+        document.getElementById('formCadastroMembro').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const res = await fetch('/api/membros', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              nome: document.getElementById('cadNome').value,
+              cpf: document.getElementById('cadCPF').value,
+              rg: document.getElementById('cadRG').value,
+              curso: document.getElementById('cadCurso').value,
+              cargaHoraria: document.getElementById('cadCarga').value,
+              fotoBase64: fotoBase64
+            })
           });
 
           const data = await res.json();
           if (data.success) {
-            document.getElementById('resNome').innerText = data.credencial.nomePessoa;
-            document.getElementById('resCPF').innerText = 'CPF: ' + data.credencial.cpfMascarado;
-            document.getElementById('resCurso').innerText = data.credencial.nomeCurso;
-            document.getElementById('resCodigo').innerText = data.credencial.codigoCredencial;
-            document.getElementById('resValidade').innerText = data.credencial.dataValidade ? 'VAL: ' + data.credencial.dataValidade : 'VITALÍCIA';
-            document.getElementById('resFoto').src = data.credencial.fotoBase64 || 'https://via.placeholder.com/80x100?text=FOTO';
-            document.getElementById('resQR').src = data.qrCodeBase64;
-            document.getElementById('resultado').classList.remove('hidden');
+            document.getElementById('resQR').src = data.qrCode;
+            document.getElementById('cardCredencial').innerHTML = \`
+              <p class="text-xs text-red-400 font-bold uppercase">DPCRIM • Credencial</p>
+              <p class="font-bold text-sm text-white">\${data.membro.nome}</p>
+              <p class="text-xs text-slate-300">CPF: \${data.membro.cpfMascarado}</p>
+              <p class="text-xs text-slate-300">Curso: \${data.membro.curso}</p>
+              <p class="text-[10px] text-slate-400 mt-2">REGISTRO: \${data.membro.codigo}</p>
+            \`;
+            document.getElementById('resCadastro').classList.remove('hidden');
           }
         });
       </script>
@@ -199,54 +222,95 @@ app.get('/', (req, res) => {
   `);
 });
 
-// ROUTE DA API PARA CADASTRAR
-app.post('/api/cadastrar', async (req, res) => {
-  const data = req.body;
-  const tokenValidacao = uuidv4();
-  const codigoCredencial = `DPCRIM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+// ==========================================
+// 2. LINK DOS FILIADOS: CONSULTA PÚBLICA & QR CODE
+// ==========================================
+app.get('/filiados', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>DPCRIM - Consulta de Filiados</title>
+      <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-slate-100 min-h-screen flex items-center justify-center p-4 font-sans">
+      
+      <div class="max-w-md w-full bg-white p-6 rounded-2xl shadow-xl border border-slate-200 text-center">
+        <div class="bg-slate-900 text-white p-4 rounded-xl mb-6">
+          <h1 class="text-xl font-bold uppercase tracking-wide">DPCRIM</h1>
+          <p class="text-xs text-slate-300">Portal Público de Validação de Filiados</p>
+        </div>
 
-  const host = req.get('host');
-  const protocol = req.protocol;
-  const urlValidadora = `${protocol}://${host}/validar/${tokenValidacao}`;
+        <form id="formBusca" class="space-y-4 mb-6">
+          <div>
+            <label class="block text-xs font-bold uppercase text-slate-700 mb-1 text-left">Consultar por CPF do Filiado</label>
+            <input type="text" id="buscaCPF" required placeholder="Digite o CPF (somente números)" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-slate-900">
+          </div>
+          <button type="submit" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3.5 rounded-xl text-sm shadow uppercase">
+            BUSCAR FILIADO
+          </button>
+        </form>
 
-  const credencial = {
-    id: uuidv4(),
-    codigoCredencial,
-    tokenValidacao,
-    nomePessoa: data.nomePessoa,
-    cpfMascarado: mascararCPF(data.cpf),
-    rg: data.rg || 'Não informado',
-    dataNascimento: data.dataNascimento || 'Não informada',
-    email: data.email || 'Não informado',
-    telefone: data.telefone || 'Não informado',
-    cidadeEstado: data.cidadeEstado || 'Não informada',
-    nomeCurso: data.nomeCurso,
-    cargaHoraria: data.cargaHoraria ? `${data.cargaHoraria}h` : 'Não informada',
-    dataEmissao: new Date().toLocaleDateString('pt-BR'),
-    dataValidade: data.dataValidade ? new Date(data.dataValidade).toLocaleDateString('pt-BR') : null,
-    fotoBase64: data.fotoBase64 || null
-  };
+        <div id="resultadoBusca" class="hidden text-left border-t pt-4 space-y-3"></div>
 
-  credenciaisDB.set(tokenValidacao, credencial);
+        <div class="mt-6 border-t pt-4">
+          <a href="/" class="text-xs text-slate-500 hover:text-slate-800 font-bold">🔒 Área Administrativa (Restrita)</a>
+        </div>
+      </div>
 
-  const qrCodeBase64 = await QRCode.toDataURL(urlValidadora, {
-    errorCorrectionLevel: 'H',
-    margin: 2,
-    color: { dark: '#0f172a', light: '#ffffff' }
-  });
+      <script>
+        document.getElementById('formBusca').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const cpf = document.getElementById('buscaCPF').value;
+          const res = await fetch('/api/filiados/buscar?cpf=' + encodeURIComponent(cpf));
+          const data = await res.json();
 
-  res.json({ success: true, credencial, qrCodeBase64 });
+          const container = document.getElementById('resultadoBusca');
+          container.classList.remove('hidden');
+
+          if (data.encontrado) {
+            container.innerHTML = \`
+              <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 p-3 rounded-xl font-bold text-center text-xs">
+                ✅ REGISTRO OFICIAL ENCONTRADO E VÁLIDO
+              </div>
+              \${data.membro.fotoBase64 ? \`<img src="\${data.membro.fotoBase64}" class="w-20 h-24 mx-auto rounded-lg object-cover border my-2">\` : ''}
+              <div class="text-xs space-y-1.5 border-t border-b py-3">
+                <p><strong>NOME:</strong> \${data.membro.nome}</p>
+                <p><strong>DOCUMENTO:</strong> \${data.membro.cpfMascarado}</p>
+                <p><strong>CURSO:</strong> \${data.membro.curso}</p>
+                <p><strong>REGISTRO:</strong> \${data.membro.codigo}</p>
+                <p><strong>EMISSÃO:</strong> \${data.membro.dataEmissao}</p>
+                <p><strong>STATUS:</strong> <span class="bg-emerald-200 text-emerald-900 font-bold px-2 py-0.5 rounded text-[10px]">ATIVO</span></p>
+              </div>
+            \`;
+          } else {
+            container.innerHTML = \`
+              <div class="bg-red-50 border border-red-300 text-red-800 p-3 rounded-xl font-bold text-center text-xs">
+                ❌ NENHUM FILIADO ENCONTRADO COM ESTE CPF
+              </div>
+            \`;
+          }
+        });
+      </script>
+    </body>
+    </html>
+  `);
 });
 
-// PÁGINA PÚBLICA DE VALIDAÇÃO (AO LER O QR CODE)
+// ==========================================
+// 3. ENDPOINT DE VALIDAÇÃO VIA QR CODE SEGURO
+// ==========================================
 app.get('/validar/:token', (req, res) => {
-  const credencial = credenciaisDB.get(req.params.token);
+  const cpfLimpo = validarTokenSeguro(req.params.token);
+  const membro = cpfLimpo ? membrosDB.get(cpfLimpo) : null;
 
-  if (!credencial) {
+  if (!membro) {
     return res.send(`
       <body style="font-family:sans-serif; text-align:center; padding:40px; background:#fef2f2;">
-        <h1 style="color:#dc2626;">❌ CREDENCIAL INVÁLIDA</h1>
-        <p>Este registro não consta na base oficial do DPCRIM.</p>
+        <h1 style="color:#dc2626;">❌ CREDENCIAL INVÁLIDA OU ADULTERADA</h1>
+        <p style="color:#7f1d1d; font-size:14px;">A assinatura digital deste QR Code falhou na verificação de segurança do DPCRIM.</p>
       </body>
     `);
   }
@@ -257,31 +321,78 @@ app.get('/validar/:token', (req, res) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>DPCRIM - Validação de Registro</title>
+      <title>DPCRIM - Validação Oficial</title>
       <script src="https://cdn.tailwindcss.com"></script>
     </head>
-    <body class="bg-slate-100 p-4 font-sans text-slate-800">
-      <div class="max-w-sm mx-auto bg-white p-6 rounded-2xl shadow-xl border border-slate-200 text-center">
+    <body class="bg-slate-100 min-h-screen flex items-center justify-center p-4 font-sans">
+      <div class="max-w-sm w-full bg-white p-6 rounded-2xl shadow-xl border border-slate-200 text-center">
         <div class="bg-emerald-100 border border-emerald-300 text-emerald-800 p-3 rounded-xl font-bold text-xs mb-4">
-          ✅ CREDENCIAL OFICIAL ATIVA
+          ✅ AUTENTICIDADE VERIFICADA E VÁLIDA
         </div>
         <h2 class="text-slate-900 font-extrabold text-xl">DPCRIM</h2>
         <p class="text-[11px] text-slate-500 mb-4">Departamento de Pesquisas e Perícias Criminológicas</p>
-        ${credencial.fotoBase64 ? `<img src="${credencial.fotoBase64}" class="w-24 h-28 mx-auto rounded-lg object-cover border-2 border-slate-200 shadow-sm mb-4">` : ''}
+        ${membro.fotoBase64 ? `<img src="${membro.fotoBase64}" class="w-24 h-28 mx-auto rounded-lg object-cover border shadow-sm mb-4">` : ''}
         <div class="text-left space-y-2 text-xs border-t border-b py-4">
-          <p><strong>Profissional:</strong> ${credencial.nomePessoa}</p>
-          <p><strong>Documento:</strong> ${credencial.cpfMascarado}</p>
-          <p><strong>Curso:</strong> ${credencial.nomeCurso}</p>
-          <p><strong>Carga Horária:</strong> ${credencial.cargaHoraria}</p>
-          <p><strong>Código Registro:</strong> ${credencial.codigoCredencial}</p>
-          <p><strong>Data de Emissão:</strong> ${credencial.dataEmissao}</p>
-          <p><strong>Validade:</strong> ${credencial.dataValidade || 'Vitalícia'}</p>
+          <p><strong>NOME DO PERITO:</strong> ${membro.nome}</p>
+          <p><strong>DOCUMENTO:</strong> ${membro.cpfMascarado}</p>
+          <p><strong>ESPECIALIDADE:</strong> ${membro.curso}</p>
+          <p><strong>REGISTRO OFICIAL:</strong> ${membro.codigo}</p>
+          <p><strong>DATA DE EMISSÃO:</strong> ${membro.dataEmissao}</p>
         </div>
+        <p class="text-[10px] text-slate-400 mt-4">Documento assinado digitalmente via protocolo de segurança HMAC-SHA256 do DPCRIM.</p>
       </div>
     </body>
     </html>
   `);
 });
 
+// ==========================================
+// 4. APIS INTERNAS E AUTENTICAÇÃO
+// ==========================================
+app.post('/api/login', (req, res) => {
+  const { email, senha } = req.body;
+  const usuario = usuariosDB.get(email);
+  if (usuario && usuario.senha === senha) {
+    return res.json({ success: true });
+  }
+  res.status(401).json({ success: false });
+});
+
+app.post('/api/membros', async (req, res) => {
+  const data = req.body;
+  const cpfLimpo = (data.cpf || '').replace(/\D/g, '');
+  const codigo = `DPCRIM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const tokenSeguro = gerarTokenSeguro(cpfLimpo);
+
+  const host = req.get('host');
+  const protocol = req.protocol;
+  const urlValidacao = `${protocol}://${host}/validar/${tokenSeguro}`;
+
+  const membro = {
+    nome: data.nome,
+    cpfMascarado: mascararCPF(data.cpf),
+    rg: data.rg || 'Não informado',
+    curso: data.curso,
+    cargaHoraria: data.cargaHoraria ? `${data.cargaHoraria}h` : 'Não informada',
+    codigo,
+    fotoBase64: data.fotoBase64 || null,
+    dataEmissao: new Date().toLocaleDateString('pt-BR')
+  };
+
+  membrosDB.set(cpfLimpo, membro);
+
+  const qrCode = await QRCode.toDataURL(urlValidacao, { errorCorrectionLevel: 'H' });
+  res.json({ success: true, membro, qrCode });
+});
+
+app.get('/api/filiados/buscar', (req, res) => {
+  const cpfLimpo = (req.query.cpf || '').replace(/\D/g, '');
+  const membro = membrosDB.get(cpfLimpo);
+  if (membro) {
+    return res.json({ encontrado: true, membro });
+  }
+  res.json({ encontrado: false });
+});
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+app.listen(PORT, () => console.log(`Servidor ativo na porta ${PORT}`));
