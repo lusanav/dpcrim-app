@@ -1,43 +1,35 @@
 const express = require('express');
-const QRCode = require('qrcode');
 const crypto = require('crypto');
-const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Chave Mestra Criptográfica
-const CHAVE_SECRETA = process.env.SECRET_KEY || 'DPCRIM_CHAVE_MESTRA_SEGURA_2026_HMAC_SHA256';
+const CHAVE_SECRETA = 'DPCRIM_CHAVE_MESTRA_SEGURA_2026';
 
-// Bancos de Dados em Memória
 const membrosDB = new Map();
 const usuariosDB = new Map();
 const logsDB = [];
 
-// Garantir utilizador ADMIN inicial fixo
-function garantirAdmin() {
-  usuariosDB.set('admin@dpcrim.org', {
-    id: 'admin-fixed-id',
-    nome: 'Administrador DPCRIM',
-    email: 'admin@dpcrim.org',
-    senha: 'admin',
-    nivel: 'ADMIN',
-    dataCriacao: new Date().toLocaleDateString('pt-BR')
-  });
-}
-garantirAdmin();
+// Garantir conta Admin
+usuariosDB.set('admin@dpcrim.org', {
+  nome: 'Administrador DPCRIM',
+  email: 'admin@dpcrim.org',
+  senha: 'admin',
+  nivel: 'ADMIN',
+  dataCriacao: new Date().toLocaleDateString('pt-BR')
+});
 
-function registrarLog(usuarioEmail, acao, detalhe = '') {
-  const dataHora = new Date().toLocaleString('pt-BR');
+function registrarLog(usuario, acao, detalhe = '') {
   logsDB.unshift({
-    id: uuidv4(),
-    usuario: usuarioEmail,
+    dataHora: new Date().toLocaleString('pt-BR'),
+    usuario,
     acao,
-    detalhe,
-    dataHora
+    detalhe
   });
 }
+
+registrarLog('SISTEMA', 'Servidor Iniciado', 'Aplicações DPCRIM operacionais');
 
 function mascararCPF(cpf) {
   const limpo = (cpf || '').replace(/\D/g, '');
@@ -50,12 +42,12 @@ function gerarTokenSeguro(cpf) {
   const timestamp = Date.now();
   const payload = `${cpfLimpo}:${timestamp}`;
   const hmac = crypto.createHmac('sha256', CHAVE_SECRETA).update(payload).digest('hex');
-  return Buffer.from(`${payload}:${hmac}`).toString('base64url');
+  return Buffer.from(`${payload}:${hmac}`).toString('hex');
 }
 
-function validarTokenSeguro(tokenBase64) {
+function validarTokenSeguro(tokenHex) {
   try {
-    const decodificado = Buffer.from(tokenBase64, 'base64url').toString('utf8');
+    const decodificado = Buffer.from(tokenHex, 'hex').toString('utf8');
     const [cpfLimpo, timestamp, hmacRecebido] = decodificado.split(':');
     const payload = `${cpfLimpo}:${timestamp}`;
     const hmacEsperado = crypto.createHmac('sha256', CHAVE_SECRETA).update(payload).digest('hex');
@@ -66,7 +58,7 @@ function validarTokenSeguro(tokenBase64) {
   }
 }
 
-// 1. TELA PRINCIPAL (SEM TAG <FORM> NO LOGIN)
+// 1. INTERFACE PRINCIPAL
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -81,7 +73,7 @@ app.get('/', (req, res) => {
       
       <div class="my-auto flex flex-col items-center justify-center w-full">
         
-        <!-- LOGIN (Sem tag form para evitar submit nativo de URL) -->
+        <!-- TELA DE LOGIN -->
         <div id="telaLogin" class="max-w-md w-full bg-white p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-700">
           <div class="text-center mb-6">
             <div class="bg-red-700 text-white font-black text-xl py-3 px-6 rounded-xl inline-block shadow">DPCRIM</div>
@@ -92,13 +84,13 @@ app.get('/', (req, res) => {
           <div class="space-y-4">
             <div>
               <label class="block text-xs font-bold uppercase text-slate-700 mb-1">E-mail Administrativo</label>
-              <input type="email" id="email" value="admin@dpcrim.org" onkeydown="verificarEnter(event)" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
+              <input type="email" id="email" value="admin@dpcrim.org" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
             </div>
             <div>
               <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Senha de Segurança</label>
-              <input type="password" id="senha" value="admin" onkeydown="verificarEnter(event)" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
+              <input type="password" id="senha" value="admin" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
             </div>
-            <button type="button" onclick="executarLogin()" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3.5 rounded-xl text-sm shadow-md transition uppercase">
+            <button type="button" id="btnLogin" onclick="fazerLogin()" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3.5 rounded-xl text-sm shadow-md transition uppercase">
               ENTRAR NO PAINEL
             </button>
           </div>
@@ -296,12 +288,6 @@ app.get('/', (req, res) => {
           }
         });
 
-        function verificarEnter(e) {
-          if (e.key === 'Enter') {
-            executarLogin();
-          }
-        }
-
         function mudarAba(aba) {
           document.getElementById('abaCadastro').classList.toggle('hidden', aba !== 'cad');
           document.getElementById('abaLista').classList.toggle('hidden', aba !== 'list');
@@ -318,12 +304,12 @@ app.get('/', (req, res) => {
           if (aba === 'logs') carregarLogs();
         }
 
-        async function executarLogin() {
+        async function fazerLogin() {
           const email = document.getElementById('email').value.trim();
           const senha = document.getElementById('senha').value.trim();
 
           if (!email || !senha) {
-            alert('Por favor, informe e-mail e senha.');
+            alert('Por favor, digite e-mail e senha.');
             return;
           }
 
@@ -344,7 +330,7 @@ app.get('/', (req, res) => {
               alert('Acesso negado: E-mail ou senha incorretos.');
             }
           } catch (err) {
-            alert('Erro de comunicação com o servidor. Verifique a conexão.');
+            alert('Erro ao conectar ao servidor. Tente novamente em instantes.');
           }
         }
 
@@ -355,7 +341,7 @@ app.get('/', (req, res) => {
           const curso = document.getElementById('cadCurso').value.trim();
 
           if (!nome || !inscricao || !cpf || !curso) {
-            alert('Por favor, preencha todos os campos obrigatórios (*).');
+            alert('Preencha os campos obrigatórios (*).');
             return;
           }
 
@@ -397,7 +383,7 @@ app.get('/', (req, res) => {
 
             document.getElementById('resCadastro').classList.remove('hidden');
             fotoBase64 = '';
-            alert('✅ Membro cadastrado e gravado com sucesso!');
+            alert('✅ Membro cadastrado com sucesso!');
           }
         }
 
@@ -420,7 +406,7 @@ app.get('/', (req, res) => {
 
           const data = await res.json();
           if (data.success) {
-            alert('✅ Novo usuário cadastrado com sucesso!');
+            alert('✅ Novo usuário cadastrado!');
             carregarUsuarios();
           } else {
             alert(data.error || 'Erro ao cadastrar usuário.');
@@ -435,7 +421,7 @@ app.get('/', (req, res) => {
             <head>
               <title>Credencial DPCRIM - \${ultimoMembroCadastrado.nome}</title>
               <style>
-                body { font-family: sans-serif; padding: 20px; background: #fff; text-align: center; }
+                body { font-family: sans-serif; padding: 20px; text-align: center; }
                 .card { width: 350px; border: 2px solid #0f172a; border-radius: 12px; padding: 16px; margin: 0 auto; text-align: left; background: #0f172a; color: white; }
                 .badge { background: #b91c1c; color: white; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; display: inline-block; }
                 .foto { width: 70px; height: 90px; object-fit: cover; border-radius: 6px; border: 1px solid #334155; }
@@ -626,7 +612,7 @@ app.get('/validar/:token', (req, res) => {
     return res.send(`
       <body style="font-family:sans-serif; text-align:center; padding:40px; background:#fef2f2;">
         <h1 style="color:#dc2626;">❌ CREDENCIAL INVÁLIDA OU ADULTERADA</h1>
-        <p style="color:#7f1d1d; font-size:14px;">A assinatura digital deste QR Code falhou na verificação de segurança do DPCRIM.</p>
+        <p style="color:#7f1d1d; font-size:14px;">A assinatura digital deste QR Code falhou na verificação do DPCRIM.</p>
       </body>
     `);
   }
@@ -657,7 +643,7 @@ app.get('/validar/:token', (req, res) => {
             <p><strong>REGISTRO OFICIAL:</strong> ${membro.codigo}</p>
             <p><strong>DATA DE EMISSÃO:</strong> ${membro.dataEmissao}</p>
           </div>
-          <p class="text-[10px] text-slate-400 mt-4">Documento assinado digitalmente via protocolo de segurança HMAC-SHA256 do DPCRIM.</p>
+          <p class="text-[10px] text-slate-400 mt-4">Documento assinado digitalmente via protocolo HMAC-SHA256.</p>
         </div>
       </div>
 
@@ -671,20 +657,18 @@ app.get('/validar/:token', (req, res) => {
 
 // APIS
 app.post('/api/login', (req, res) => {
-  garantirAdmin();
   const { email, senha } = req.body;
-  const usuario = usuariosDB.get(email);
-
-  if ((usuario && usuario.senha === senha) || (email === 'admin@dpcrim.org' && senha === 'admin')) {
-    registrarLog(email, 'Login efetuado', 'Acesso autenticado no sistema');
+  
+  if ((email === 'admin@dpcrim.org' && senha === 'admin') || (usuariosDB.has(email) && usuariosDB.get(email).senha === senha)) {
+    registrarLog(email, 'Login efetuado', 'Acesso autenticado com sucesso');
     return res.json({ success: true });
   }
 
-  registrarLog(email || 'DESCONHECIDO', 'Tentativa de Login Falhou', 'E-mail ou senha incorretos');
+  registrarLog(email || 'DESCONHECIDO', 'Tentativa de Login Falhou', 'Credenciais incorretas');
   res.status(401).json({ success: false });
 });
 
-app.post('/api/membros', async (req, res) => {
+app.post('/api/membros', (req, res) => {
   const data = req.body;
   const cpfLimpo = (data.cpf || '').replace(/\D/g, '');
   const codigo = `DPCRIM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -710,38 +694,27 @@ app.post('/api/membros', async (req, res) => {
   membrosDB.set(cpfLimpo, membro);
   registrarLog(data.operador || 'ADMIN', 'Membro Cadastrado', `Nome: ${data.nome} | CPF: ${membro.cpfMascarado}`);
 
-  const qrCode = await QRCode.toDataURL(urlValidacao, { errorCorrectionLevel: 'H' });
-  res.json({ success: true, membro, qrCode });
+  const qrCodeApi = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(urlValidacao)}`;
+  res.json({ success: true, membro, qrCode: qrCodeApi });
 });
 
 app.post('/api/usuarios', (req, res) => {
   const { nome, email, senha, nivel, operador } = req.body;
 
   if (!nome || !email || !senha) {
-    return res.status(400).json({ success: false, error: 'Preencha todos os campos obrigatórios.' });
+    return res.status(400).json({ success: false, error: 'Campos obrigatórios ausentes.' });
   }
 
-  const novoUsuario = {
-    id: uuidv4(),
-    nome,
-    email,
-    senha,
-    nivel: nivel || 'OPERADOR',
-    dataCriacao: new Date().toLocaleDateString('pt-BR')
-  };
+  usuariosDB.set(email, {
+    nome, email, senha, nivel: nivel || 'OPERADOR', dataCriacao: new Date().toLocaleDateString('pt-BR')
+  });
 
-  usuariosDB.set(email, novoUsuario);
-  registrarLog(operador || 'ADMIN', 'Novo Usuário Criado', `Usuário: ${email} | Nível: ${novoUsuario.nivel}`);
-
+  registrarLog(operador || 'ADMIN', 'Novo Usuário Criado', `Usuário: ${email}`);
   res.json({ success: true });
 });
 
 app.get('/api/membros', (req, res) => res.json(Array.from(membrosDB.values())));
-app.get('/api/usuarios', (req, res) => {
-  res.json(Array.from(usuariosDB.values()).map(u => ({
-    nome: u.nome, email: u.email, nivel: u.nivel, dataCriacao: u.dataCriacao
-  })));
-});
+app.get('/api/usuarios', (req, res) => res.json(Array.from(usuariosDB.values())));
 app.get('/api/logs', (req, res) => res.json(logsDB));
 app.get('/api/filiados/buscar', (req, res) => {
   const cpfLimpo = (req.query.cpf || '').replace(/\D/g, '');
