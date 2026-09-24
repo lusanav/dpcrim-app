@@ -7,22 +7,40 @@ const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Chave Mestra Criptográfica (Camada Extremamente Segura)
+// Chave Mestra Criptográfica
 const CHAVE_SECRETA = process.env.SECRET_KEY || 'DPCRIM_CHAVE_MESTRA_SEGURA_2026_HMAC_SHA256';
 
 // Bancos de Dados em Memória
 const membrosDB = new Map();   // Armazena os filiados pelo CPF limpo
-const usuariosDB = new Map();  // Armazena usuários do sistema (Admins)
+const usuariosDB = new Map();  // Armazena usuários do sistema
+const logsDB = [];             // Armazena o histórico de acessos e ações
 
 // Criar Administrador Padrão Inicial
 usuariosDB.set('admin@dpcrim.org', {
   id: uuidv4(),
-  nome: 'Diretoria DPCRIM',
+  nome: 'Administrador DPCRIM',
   email: 'admin@dpcrim.org',
-  senha: 'admin'
+  senha: 'admin',
+  nivel: 'ADMIN',
+  dataCriacao: new Date().toLocaleDateString('pt-BR')
 });
 
-// FUNÇÕES DE SEGURANÇA E CRIPTOGRAFIA
+// Registrar Log do Sistema
+function registrarLog(usuarioEmail, acao, detalhe = '') {
+  const dataHora = new Date().toLocaleString('pt-BR');
+  logsDB.unshift({
+    id: uuidv4(),
+    usuario: usuarioEmail,
+    acao,
+    detalhe,
+    dataHora
+  });
+}
+
+// Log inicial de sistema
+registrarLog('SISTEMA', 'Inicialização da Aplicação', 'Servidor DPCRIM iniciado');
+
+// FUNÇÕES DE SEGURANÇA
 function mascararCPF(cpf) {
   const limpo = (cpf || '').replace(/\D/g, '');
   if (limpo.length !== 11) return '***.***.***-**';
@@ -78,11 +96,11 @@ app.get('/', (req, res) => {
           <form id="formLogin" class="space-y-4">
             <div>
               <label class="block text-xs font-bold uppercase text-slate-700 mb-1">E-mail Administrativo</label>
-              <input type="email" id="email" required placeholder="admin@dpcrim.org" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
+              <input type="email" id="email" required value="admin@dpcrim.org" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
             </div>
             <div>
               <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Senha de Segurança</label>
-              <input type="password" id="senha" required placeholder="••••••••" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
+              <input type="password" id="senha" required value="admin" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
             </div>
             <button type="submit" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3.5 rounded-xl text-sm shadow-md transition uppercase">
               ENTRAR NO PAINEL
@@ -96,24 +114,30 @@ app.get('/', (req, res) => {
           </div>
         </div>
 
-        <!-- PAINEL ADMINISTRATIVO (EXIBIDO APÓS LOGIN) -->
+        <!-- PAINEL ADMINISTRATIVO -->
         <div id="painelAdmin" class="hidden w-full max-w-4xl bg-white p-6 rounded-2xl shadow-xl border border-slate-200 my-4">
           
           <div class="flex justify-between items-center bg-slate-900 text-white p-4 rounded-xl mb-6">
             <div>
               <h2 class="font-bold text-lg">DPCRIM • Painel Interno</h2>
-              <p class="text-xs text-slate-300">Gestão do Sistema de Credenciamento</p>
+              <p id="usrLogado" class="text-xs text-slate-300"></p>
             </div>
             <button onclick="location.reload()" class="bg-red-700 hover:bg-red-800 text-white text-xs px-3 py-1.5 rounded-lg font-bold">SAIR</button>
           </div>
 
           <!-- ABAS DE NAVEGAÇÃO -->
-          <div class="flex border-b border-slate-200 mb-6 gap-2">
-            <button id="tabCadBtn" onclick="alternarAbaAdmin('cad')" class="py-2.5 px-4 font-bold text-xs uppercase rounded-t-lg bg-slate-900 text-white">
-              ➕ Cadastrar Novo Membro
+          <div class="flex flex-wrap border-b border-slate-200 mb-6 gap-2">
+            <button id="tabCadBtn" onclick="alternarAbaAdmin('cad')" class="py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-900 text-white">
+              ➕ Cadastrar Membro
             </button>
-            <button id="tabListBtn" onclick="alternarAbaAdmin('list')" class="py-2.5 px-4 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600 hover:bg-slate-200">
-              📋 Lista de Pessoas Cadastradas
+            <button id="tabListBtn" onclick="alternarAbaAdmin('list')" class="py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600 hover:bg-slate-200">
+              📋 Lista de Membros
+            </button>
+            <button id="tabAccBtn" onclick="alternarAbaAdmin('acc')" class="py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600 hover:bg-slate-200">
+              👤 Cadastrar Acessos
+            </button>
+            <button id="tabLogsBtn" onclick="alternarAbaAdmin('logs')" class="py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600 hover:bg-slate-200">
+              📜 Logs de Acesso
             </button>
           </div>
 
@@ -165,30 +189,24 @@ app.get('/', (req, res) => {
               </button>
             </form>
 
-            <!-- Alerta visual de gravação com sucesso -->
             <div id="resCadastro" class="mt-6 hidden border-t pt-4 text-center space-y-4">
               <div class="bg-emerald-100 border border-emerald-400 text-emerald-800 p-4 rounded-xl text-center font-bold text-sm">
                 🎉 Cadastro gravado com sucesso no sistema DPCRIM!
               </div>
-
               <div id="cardCredencial" class="max-w-md mx-auto bg-slate-900 text-white p-5 rounded-2xl text-left border border-slate-700 shadow-xl space-y-3"></div>
-
-              <button onclick="imprimirPDF()" class="bg-red-700 hover:bg-red-800 text-white font-bold py-3 px-6 rounded-xl text-xs uppercase shadow-md transition">
+              <button onclick="imprimirPDF()" class="bg-red-700 hover:bg-red-800 text-white font-bold py-3 px-6 rounded-xl text-xs uppercase shadow">
                 🖨️ IMPRIMIR / GERAR PDF DA CREDENCIAL
               </button>
             </div>
           </div>
 
-          <!-- ABA 2: LISTA DE PESSOAS CADASTRADAS -->
+          <!-- ABA 2: LISTA DE MEMBROS -->
           <div id="abaLista" class="hidden space-y-4">
-            <div class="flex justify-between items-center mb-2">
-              <input type="text" id="filtroLista" onkeyup="filtrarLista()" placeholder="🔍 Pesquisar por nome, CPF ou inscrição..." class="w-full p-2.5 border rounded-xl bg-slate-50 text-xs outline-none focus:ring-2 focus:ring-slate-900">
-            </div>
-
+            <input type="text" id="filtroLista" onkeyup="filtrarLista()" placeholder="🔍 Pesquisar por nome, CPF ou inscrição..." class="w-full p-2.5 border rounded-xl bg-slate-50 text-xs outline-none">
             <div class="overflow-x-auto border rounded-xl">
               <table class="w-full text-xs text-left border-collapse">
                 <thead>
-                  <tr class="bg-slate-900 text-white uppercase text-[10px] tracking-wider">
+                  <tr class="bg-slate-900 text-white uppercase text-[10px]">
                     <th class="p-3">Foto</th>
                     <th class="p-3">Nome Completo</th>
                     <th class="p-3">Inscrição</th>
@@ -197,9 +215,73 @@ app.get('/', (req, res) => {
                     <th class="p-3 text-center">Ações</th>
                   </tr>
                 </thead>
-                <tbody id="tabelaMembros" class="divide-y divide-slate-200">
-                  <!-- Preenchido via JavaScript -->
-                </tbody>
+                <tbody id="tabelaMembros" class="divide-y divide-slate-200"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ABA 3: CADASTRO DE ACESSOS -->
+          <div id="abaAcessos" class="hidden space-y-6">
+            <form id="formNovoUsuario" class="space-y-4 border p-4 rounded-xl bg-slate-50">
+              <h3 class="text-xs font-bold uppercase text-slate-800">Cadastrar Novo Usuário Administrativo</h3>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">NOME COMPLETO *</label>
+                  <input type="text" id="usrNome" required placeholder="Ex: Maria Secretária" class="w-full p-2.5 border rounded-lg bg-white text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">E-MAIL DE LOGIN *</label>
+                  <input type="email" id="usrEmail" required placeholder="operador@dpcrim.org" class="w-full p-2.5 border rounded-lg bg-white text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">SENHA *</label>
+                  <input type="password" id="usrSenha" required placeholder="••••••••" class="w-full p-2.5 border rounded-lg bg-white text-sm">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">NÍVEL DE PERMISSÃO</label>
+                  <select id="usrNivel" class="w-full p-2.5 border rounded-lg bg-white text-sm font-bold">
+                    <option value="OPERADOR">Operador (Cadastra Membros)</option>
+                    <option value="ADMIN">Administrador (Total)</option>
+                  </select>
+                </div>
+              </div>
+              <button type="submit" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3 rounded-xl text-xs uppercase shadow">
+                CADASTRAR NOVO USUÁRIO
+              </button>
+            </form>
+
+            <div>
+              <h3 class="text-xs font-bold uppercase text-slate-800 mb-2">Usuários com Acesso</h3>
+              <div class="overflow-x-auto border rounded-xl">
+                <table class="w-full text-xs text-left border-collapse">
+                  <thead>
+                    <tr class="bg-slate-900 text-white uppercase text-[10px]">
+                      <th class="p-2.5">Nome</th>
+                      <th class="p-2.5">E-mail</th>
+                      <th class="p-2.5">Nível</th>
+                      <th class="p-2.5">Data Cadastro</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tabelaUsuarios" class="divide-y divide-slate-200"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- ABA 4: LOGS DE ACESSO -->
+          <div id="abaLogs" class="hidden space-y-4">
+            <h3 class="text-xs font-bold uppercase text-slate-800">Histórico de Acessos e Auditoria</h3>
+            <div class="overflow-x-auto border rounded-xl">
+              <table class="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr class="bg-slate-900 text-white uppercase text-[10px]">
+                    <th class="p-2.5">Data/Hora</th>
+                    <th class="p-2.5">Usuário</th>
+                    <th class="p-2.5">Ação Realizada</th>
+                    <th class="p-2.5">Detalhes</th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaLogs" class="divide-y divide-slate-200"></tbody>
               </table>
             </div>
           </div>
@@ -207,13 +289,13 @@ app.get('/', (req, res) => {
         </div>
       </div>
 
-      <!-- RODAPÉ DE CRÉDITOS -->
       <footer class="w-full text-center py-4 text-xs text-slate-400 border-t border-slate-800 mt-auto">
         Desenvolvido por <strong class="text-white">Lusana Verissimo</strong>
       </footer>
 
       <script>
         let fotoBase64 = '';
+        let usuarioAtualEmail = '';
         let listaMembrosCache = [];
         let ultimoMembroCadastrado = null;
 
@@ -227,29 +309,37 @@ app.get('/', (req, res) => {
         });
 
         function alternarAbaAdmin(aba) {
-          const isCad = aba === 'cad';
-          document.getElementById('abaCadastro').classList.toggle('hidden', !isCad);
-          document.getElementById('abaLista').classList.toggle('hidden', isCad);
+          document.getElementById('abaCadastro').classList.toggle('hidden', aba !== 'cad');
+          document.getElementById('abaLista').classList.toggle('hidden', aba !== 'list');
+          document.getElementById('abaAcessos').classList.toggle('hidden', aba !== 'acc');
+          document.getElementById('abaLogs').classList.toggle('hidden', aba !== 'logs');
 
-          document.getElementById('tabCadBtn').className = isCad ? 'py-2.5 px-4 font-bold text-xs uppercase rounded-t-lg bg-slate-900 text-white' : 'py-2.5 px-4 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600 hover:bg-slate-200';
-          document.getElementById('tabListBtn').className = !isCad ? 'py-2.5 px-4 font-bold text-xs uppercase rounded-t-lg bg-slate-900 text-white' : 'py-2.5 px-4 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600 hover:bg-slate-200';
+          document.getElementById('tabCadBtn').className = aba === 'cad' ? 'py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-900 text-white' : 'py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600';
+          document.getElementById('tabListBtn').className = aba === 'list' ? 'py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-900 text-white' : 'py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600';
+          document.getElementById('tabAccBtn').className = aba === 'acc' ? 'py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-900 text-white' : 'py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600';
+          document.getElementById('tabLogsBtn').className = aba === 'logs' ? 'py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-900 text-white' : 'py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600';
 
-          if (!isCad) carregarListaMembros();
+          if (aba === 'list') carregarListaMembros();
+          if (aba === 'acc') carregarUsuarios();
+          if (aba === 'logs') carregarLogs();
         }
 
         // Login
         document.getElementById('formLogin').addEventListener('submit', async (e) => {
           e.preventDefault();
+          const email = document.getElementById('email').value;
+          const senha = document.getElementById('senha').value;
+
           const res = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: document.getElementById('email').value,
-              senha: document.getElementById('senha').value
-            })
+            body: JSON.stringify({ email, senha })
           });
+
           const data = await res.json();
           if (data.success) {
+            usuarioAtualEmail = email;
+            document.getElementById('usrLogado').innerText = 'Operador: ' + email;
             document.getElementById('telaLogin').classList.add('hidden');
             document.getElementById('painelAdmin').classList.remove('hidden');
           } else {
@@ -257,7 +347,7 @@ app.get('/', (req, res) => {
           }
         });
 
-        // Submeter Cadastro
+        // Cadastro Membro
         document.getElementById('formCadastroMembro').addEventListener('submit', async (e) => {
           e.preventDefault();
           const res = await fetch('/api/membros', {
@@ -270,7 +360,8 @@ app.get('/', (req, res) => {
               rg: document.getElementById('cadRG').value,
               curso: document.getElementById('cadCurso').value,
               cargaHoraria: document.getElementById('cadCarga').value,
-              fotoBase64: fotoBase64
+              fotoBase64: fotoBase64,
+              operador: usuarioAtualEmail
             })
           });
 
@@ -299,6 +390,31 @@ app.get('/', (req, res) => {
             document.getElementById('formCadastroMembro').reset();
             fotoBase64 = '';
             alert('✅ Membro cadastrado e gravado com sucesso!');
+          }
+        });
+
+        // Cadastro Novo Usuário Administrativo
+        document.getElementById('formNovoUsuario').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const res = await fetch('/api/usuarios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              nome: document.getElementById('usrNome').value,
+              email: document.getElementById('usrEmail').value,
+              senha: document.getElementById('usrSenha').value,
+              nivel: document.getElementById('usrNivel').value,
+              operador: usuarioAtualEmail
+            })
+          });
+
+          const data = await res.json();
+          if (data.success) {
+            alert('✅ Novo usuário cadastrado com sucesso!');
+            document.getElementById('formNovoUsuario').reset();
+            carregarUsuarios();
+          } else {
+            alert(data.error || 'Erro ao cadastrar usuário.');
           }
         });
 
@@ -353,25 +469,42 @@ app.get('/', (req, res) => {
 
         function renderizarTabela(dados) {
           const tbody = document.getElementById('tabelaMembros');
-          if (dados.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-500">Nenhum membro cadastrado até o momento.</td></tr>';
-            return;
-          }
-
           tbody.innerHTML = dados.map(m => \`
             <tr class="hover:bg-slate-50 transition">
-              <td class="p-2.5">
-                <img src="\${m.fotoBase64 || 'https://via.placeholder.com/40?text=FOTO'}" class="w-8 h-10 object-cover rounded border">
-              </td>
+              <td class="p-2.5"><img src="\${m.fotoBase64 || 'https://via.placeholder.com/40?text=FOTO'}" class="w-8 h-10 object-cover rounded border"></td>
               <td class="p-2.5 font-bold text-slate-900">\${m.nome}</td>
               <td class="p-2.5 font-semibold text-slate-700">\${m.inscricao}</td>
               <td class="p-2.5 font-mono text-slate-600">\${m.cpfMascarado}</td>
               <td class="p-2.5 text-slate-700">\${m.curso}</td>
               <td class="p-2.5 text-center">
-                <button onclick="verValidacao('\${m.tokenSeguro}')" class="bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-2.5 py-1 rounded shadow">
-                  🔍 Ver Registro
-                </button>
+                <button onclick="window.open('/validar/' + '\${m.tokenSeguro}', '_blank')" class="bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-2.5 py-1 rounded shadow">🔍 Ver Registro</button>
               </td>
+            </tr>
+          \`).join('');
+        }
+
+        async function carregarUsuarios() {
+          const res = await fetch('/api/usuarios');
+          const dados = await res.json();
+          document.getElementById('tabelaUsuarios').innerHTML = dados.map(u => \`
+            <tr class="hover:bg-slate-50">
+              <td class="p-2.5 font-bold">\${u.nome}</td>
+              <td class="p-2.5 font-mono">\${u.email}</td>
+              <td class="p-2.5"><span class="bg-red-100 text-red-800 font-bold text-[10px] px-2 py-0.5 rounded">\${u.nivel}</span></td>
+              <td class="p-2.5 text-slate-500">\${u.dataCriacao}</td>
+            </tr>
+          \`).join('');
+        }
+
+        async function carregarLogs() {
+          const res = await fetch('/api/logs');
+          const dados = await res.json();
+          document.getElementById('tabelaLogs').innerHTML = dados.map(l => \`
+            <tr class="hover:bg-slate-50">
+              <td class="p-2.5 font-mono text-[11px] text-slate-500">\${l.dataHora}</td>
+              <td class="p-2.5 font-bold text-slate-800">\${l.usuario}</td>
+              <td class="p-2.5 font-bold text-red-700">\${l.acao}</td>
+              <td class="p-2.5 text-slate-600">\${l.detalhe}</td>
             </tr>
           \`).join('');
         }
@@ -381,14 +514,9 @@ app.get('/', (req, res) => {
           const filtrados = listaMembrosCache.filter(m => 
             m.nome.toLowerCase().includes(termo) || 
             m.inscricao.toLowerCase().includes(termo) || 
-            m.cpfMascarado.includes(termo) || 
-            m.codigo.toLowerCase().includes(termo)
+            m.cpfMascarado.includes(termo)
           );
           renderizarTabela(filtrados);
-        }
-
-        function verValidacao(token) {
-          window.open('/validar/' + token, '_blank');
         }
       </script>
     </body>
@@ -397,7 +525,7 @@ app.get('/', (req, res) => {
 });
 
 // ==========================================
-// 2. PORTAL DE CONSULTA PÚBLICA DE FILIADOS
+// 2. PORTAL PÚBLICO E VALIDAÇÃO
 // ==========================================
 app.get('/filiados', (req, res) => {
   res.send(`
@@ -410,7 +538,6 @@ app.get('/filiados', (req, res) => {
       <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-100 min-h-screen flex flex-col justify-between p-4 font-sans text-slate-800">
-      
       <div class="my-auto flex flex-col items-center justify-center w-full">
         <div class="max-w-md w-full bg-white p-6 rounded-2xl shadow-xl border border-slate-200 text-center">
           <div class="bg-slate-900 text-white p-4 rounded-xl mb-6">
@@ -421,7 +548,7 @@ app.get('/filiados', (req, res) => {
           <form id="formBusca" class="space-y-4 mb-6">
             <div>
               <label class="block text-xs font-bold uppercase text-slate-700 mb-1 text-left">Consultar por CPF do Filiado</label>
-              <input type="text" id="buscaCPF" required placeholder="Digite o CPF (somente números)" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-slate-900">
+              <input type="text" id="buscaCPF" required placeholder="Digite o CPF (somente números)" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none">
             </div>
             <button type="submit" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3.5 rounded-xl text-sm shadow uppercase">
               BUSCAR FILIADO
@@ -436,7 +563,6 @@ app.get('/filiados', (req, res) => {
         </div>
       </div>
 
-      <!-- RODAPÉ DE CRÉDITOS -->
       <footer class="w-full text-center py-4 text-xs text-slate-500 border-t border-slate-200 mt-auto">
         Desenvolvido por <strong class="text-slate-800">Lusana Verissimo</strong>
       </footer>
@@ -481,9 +607,7 @@ app.get('/filiados', (req, res) => {
   `);
 });
 
-// ==========================================
-// 3. PÁGINA DE VALIDAÇÃO (QR CODE SEGURO)
-// ==========================================
+// PÁGINA DE VALIDAÇÃO QR CODE
 app.get('/validar/:token', (req, res) => {
   const cpfLimpo = validarTokenSeguro(req.params.token);
   const membro = cpfLimpo ? membrosDB.get(cpfLimpo) : null;
@@ -527,7 +651,6 @@ app.get('/validar/:token', (req, res) => {
         </div>
       </div>
 
-      <!-- RODAPÉ DE CRÉDITOS -->
       <footer class="w-full text-center py-4 text-xs text-slate-500 border-t border-slate-200 mt-auto">
         Desenvolvido por <strong class="text-slate-800">Lusana Verissimo</strong>
       </footer>
@@ -537,14 +660,18 @@ app.get('/validar/:token', (req, res) => {
 });
 
 // ==========================================
-// 4. ENDPOINTS DA API
+// 3. APIS DE AUTENTICAÇÃO E CADASTROS
 // ==========================================
 app.post('/api/login', (req, res) => {
   const { email, senha } = req.body;
   const usuario = usuariosDB.get(email);
+
   if (usuario && usuario.senha === senha) {
+    registrarLog(email, 'Login efetuado', 'Acesso autenticado com sucesso');
     return res.json({ success: true });
   }
+
+  registrarLog(email || 'DESCONHECIDO', 'Tentativa de Login Falhou', 'E-mail ou senha incorretos');
   res.status(401).json({ success: false });
 });
 
@@ -572,14 +699,54 @@ app.post('/api/membros', async (req, res) => {
   };
 
   membrosDB.set(cpfLimpo, membro);
+  registrarLog(data.operador || 'ADMIN', 'Membro Cadastrado', `Nome: ${data.nome} | CPF: ${membro.cpfMascarado}`);
 
   const qrCode = await QRCode.toDataURL(urlValidacao, { errorCorrectionLevel: 'H' });
   res.json({ success: true, membro, qrCode });
 });
 
+app.post('/api/usuarios', (req, res) => {
+  const { nome, email, senha, nivel, operador } = req.body;
+
+  if (!nome || !email || !senha) {
+    return res.status(400).json({ success: false, error: 'Preencha todos os campos obrigatórios.' });
+  }
+
+  if (usuariosDB.has(email)) {
+    return res.status(400).json({ success: false, error: 'E-mail já cadastrado.' });
+  }
+
+  const novoUsuario = {
+    id: uuidv4(),
+    nome,
+    email,
+    senha,
+    nivel: nivel || 'OPERADOR',
+    dataCriacao: new Date().toLocaleDateString('pt-BR')
+  };
+
+  usuariosDB.set(email, novoUsuario);
+  registrarLog(operador || 'ADMIN', 'Novo Usuário Criado', `Usuário: ${email} | Nível: ${novoUsuario.nivel}`);
+
+  res.json({ success: true });
+});
+
 app.get('/api/membros', (req, res) => {
-  const lista = Array.from(membrosDB.values());
+  res.json(Array.from(membrosDB.values()));
+});
+
+app.get('/api/usuarios', (req, res) => {
+  const lista = Array.from(usuariosDB.values()).map(u => ({
+    nome: u.nome,
+    email: u.email,
+    nivel: u.nivel,
+    dataCriacao: u.dataCriacao
+  }));
   res.json(lista);
+});
+
+app.get('/api/logs', (req, res) => {
+  res.json(logsDB);
 });
 
 app.get('/api/filiados/buscar', (req, res) => {
@@ -592,4 +759,4 @@ app.get('/api/filiados/buscar', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor ativo na porta ${PORT}`));
+app.listen(PORT, () => console.log(`Servidor DPCRIM rodando na porta ${PORT}`));
