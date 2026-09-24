@@ -11,7 +11,6 @@ const membrosDB = new Map();
 const usuariosDB = new Map();
 const logsDB = [];
 
-// Garantir conta Admin
 usuariosDB.set('admin@dpcrim.org', {
   nome: 'Administrador DPCRIM',
   email: 'admin@dpcrim.org',
@@ -58,7 +57,7 @@ function validarTokenSeguro(tokenHex) {
   }
 }
 
-// 1. INTERFACE PRINCIPAL
+// INTERFACE PRINCIPAL
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -90,7 +89,7 @@ app.get('/', (req, res) => {
               <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Senha de Segurança</label>
               <input type="password" id="senha" value="admin" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
             </div>
-            <button type="button" id="btnLogin" onclick="fazerLogin()" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3.5 rounded-xl text-sm shadow-md transition uppercase">
+            <button type="button" onclick="fazerLogin()" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3.5 rounded-xl text-sm shadow-md transition uppercase">
               ENTRAR NO PAINEL
             </button>
           </div>
@@ -113,7 +112,6 @@ app.get('/', (req, res) => {
             <button onclick="location.reload()" class="bg-red-700 hover:bg-red-800 text-white text-xs px-3 py-1.5 rounded-lg font-bold">SAIR</button>
           </div>
 
-          <!-- ABAS -->
           <div class="flex flex-wrap border-b border-slate-200 mb-6 gap-2">
             <button id="tabCadBtn" onclick="mudarAba('cad')" class="py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-900 text-white">➕ Cadastrar Membro</button>
             <button id="tabListBtn" onclick="mudarAba('list')" class="py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600">📋 Lista de Membros</button>
@@ -121,7 +119,6 @@ app.get('/', (req, res) => {
             <button id="tabLogsBtn" onclick="mudarAba('logs')" class="py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600">📜 Logs de Acesso</button>
           </div>
 
-          <!-- ABA CADASTRO -->
           <div id="abaCadastro">
             <div class="space-y-6">
               <div class="border-b pb-4">
@@ -180,7 +177,6 @@ app.get('/', (req, res) => {
             </div>
           </div>
 
-          <!-- ABA LISTA -->
           <div id="abaLista" class="hidden space-y-4">
             <input type="text" id="filtroLista" onkeyup="filtrarLista()" placeholder="🔍 Pesquisar por nome, CPF ou inscrição..." class="w-full p-2.5 border rounded-xl bg-slate-50 text-xs outline-none">
             <div class="overflow-x-auto border rounded-xl">
@@ -200,7 +196,6 @@ app.get('/', (req, res) => {
             </div>
           </div>
 
-          <!-- ABA ACESSOS -->
           <div id="abaAcessos" class="hidden space-y-6">
             <div class="space-y-4 border p-4 rounded-xl bg-slate-50">
               <h3 class="text-xs font-bold uppercase text-slate-800">Cadastrar Novo Usuário Administrativo</h3>
@@ -248,7 +243,6 @@ app.get('/', (req, res) => {
             </div>
           </div>
 
-          <!-- ABA LOGS -->
           <div id="abaLogs" class="hidden space-y-4">
             <h3 class="text-xs font-bold uppercase text-slate-800">Histórico de Acessos e Auditoria</h3>
             <div class="overflow-x-auto border rounded-xl">
@@ -274,19 +268,22 @@ app.get('/', (req, res) => {
       </footer>
 
       <script>
-        let fotoBase64 = '';
-        let usuarioAtualEmail = '';
-        let listaMembrosCache = [];
-        let ultimoMembroCadastrado = null;
+        var fotoBase64 = '';
+        var usuarioAtualEmail = '';
+        var listaMembrosCache = [];
+        var ultimoMembroCadastrado = null;
 
-        document.getElementById('cadFoto')?.addEventListener('change', (e) => {
-          const file = e.target.files[0];
-          if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => { fotoBase64 = event.target.result; };
-            reader.readAsDataURL(file);
-          }
-        });
+        var cadFotoEl = document.getElementById('cadFoto');
+        if (cadFotoEl) {
+          cadFotoEl.addEventListener('change', function(e) {
+            var file = e.target.files[0];
+            if (file) {
+              var reader = new FileReader();
+              reader.onload = function(event) { fotoBase64 = event.target.result; };
+              reader.readAsDataURL(file);
+            }
+          });
+        }
 
         function mudarAba(aba) {
           document.getElementById('abaCadastro').classList.toggle('hidden', aba !== 'cad');
@@ -304,23 +301,22 @@ app.get('/', (req, res) => {
           if (aba === 'logs') carregarLogs();
         }
 
-        async function fazerLogin() {
-          const email = document.getElementById('email').value.trim();
-          const senha = document.getElementById('senha').value.trim();
+        function fazerLogin() {
+          var email = document.getElementById('email').value.trim();
+          var senha = document.getElementById('senha').value.trim();
 
           if (!email || !senha) {
             alert('Por favor, digite e-mail e senha.');
             return;
           }
 
-          try {
-            const res = await fetch('/api/login', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email, senha })
-            });
-
-            const data = await res.json();
+          fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email, senha: senha })
+          })
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
             if (data.success) {
               usuarioAtualEmail = email;
               document.getElementById('usrLogado').innerText = 'Operador: ' + email;
@@ -329,188 +325,196 @@ app.get('/', (req, res) => {
             } else {
               alert('Acesso negado: E-mail ou senha incorretos.');
             }
-          } catch (err) {
+          })
+          .catch(function(err) {
             alert('Erro ao conectar ao servidor. Tente novamente em instantes.');
-          }
+          });
         }
 
-        async function salvarMembro() {
-          const nome = document.getElementById('cadNome').value.trim();
-          const inscricao = document.getElementById('cadInscricao').value.trim();
-          const cpf = document.getElementById('cadCPF').value.trim();
-          const curso = document.getElementById('cadCurso').value.trim();
+        function salvarMembro() {
+          var nome = document.getElementById('cadNome').value.trim();
+          var inscricao = document.getElementById('cadInscricao').value.trim();
+          var cpf = document.getElementById('cadCPF').value.trim();
+          var curso = document.getElementById('cadCurso').value.trim();
 
           if (!nome || !inscricao || !cpf || !curso) {
             alert('Preencha os campos obrigatórios (*).');
             return;
           }
 
-          const res = await fetch('/api/membros', {
+          fetch('/api/membros', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              nome,
-              inscricao,
-              cpf,
+              nome: nome,
+              inscricao: inscricao,
+              cpf: cpf,
               rg: document.getElementById('cadRG').value,
-              curso,
+              curso: curso,
               cargaHoraria: document.getElementById('cadCarga').value,
-              fotoBase64,
+              fotoBase64: fotoBase64,
               operador: usuarioAtualEmail
             })
+          })
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+            if (data.success) {
+              ultimoMembroCadastrado = Object.assign({}, data.membro, { qrCode: data.qrCode });
+              
+              var fotoHtml = data.membro.fotoBase64 ? '<img src="' + data.membro.fotoBase64 + '" class="w-16 h-20 object-cover rounded border border-slate-700">' : '';
+              
+              document.getElementById('cardCredencial').innerHTML = 
+                '<div class="bg-red-700 text-[10px] font-bold px-2 py-0.5 rounded w-max uppercase mb-2">DPCRIM • Credencial</div>' +
+                '<div class="flex space-x-4 items-center">' +
+                  fotoHtml +
+                  '<div class="text-xs space-y-1">' +
+                    '<p class="font-bold text-sm text-white">' + data.membro.nome + '</p>' +
+                    '<p class="text-slate-300">INSCRIÇÃO: ' + data.membro.inscricao + '</p>' +
+                    '<p class="text-slate-300">CPF: ' + data.membro.cpfMascarado + '</p>' +
+                    '<p class="text-red-300 font-semibold">' + data.membro.curso + '</p>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="mt-3 pt-2 border-t border-slate-800 text-[10px] text-slate-400 flex justify-between items-center">' +
+                  '<span>REGISTRO: ' + data.membro.codigo + '</span>' +
+                  '<img src="' + data.qrCode + '" class="w-12 h-12 bg-white p-0.5 rounded">' +
+                '</div>';
+
+              document.getElementById('resCadastro').classList.remove('hidden');
+              fotoBase64 = '';
+              alert('✅ Membro cadastrado com sucesso!');
+            }
           });
-
-          const data = await res.json();
-          if (data.success) {
-            ultimoMembroCadastrado = { ...data.membro, qrCode: data.qrCode };
-            
-            document.getElementById('cardCredencial').innerHTML = \`
-              <div class="bg-red-700 text-[10px] font-bold px-2 py-0.5 rounded w-max uppercase mb-2">DPCRIM • Credencial</div>
-              <div class="flex space-x-4 items-center">
-                \${data.membro.fotoBase64 ? \`<img src="\${data.membro.fotoBase64}" class="w-16 h-20 object-cover rounded border border-slate-700">\` : ''}
-                <div class="text-xs space-y-1">
-                  <p class="font-bold text-sm text-white">\${data.membro.nome}</p>
-                  <p class="text-slate-300">INSCRIÇÃO: \${data.membro.inscricao}</p>
-                  <p class="text-slate-300">CPF: \${data.membro.cpfMascarado}</p>
-                  <p class="text-red-300 font-semibold">\${data.membro.curso}</p>
-                </div>
-              </div>
-              <div class="mt-3 pt-2 border-t border-slate-800 text-[10px] text-slate-400 flex justify-between items-center">
-                <span>REGISTRO: \${data.membro.codigo}</span>
-                <img src="\${data.qrCode}" class="w-12 h-12 bg-white p-0.5 rounded">
-              </div>
-            \`;
-
-            document.getElementById('resCadastro').classList.remove('hidden');
-            fotoBase64 = '';
-            alert('✅ Membro cadastrado com sucesso!');
-          }
         }
 
-        async function salvarNovoUsuario() {
-          const nome = document.getElementById('usrNome').value.trim();
-          const email = document.getElementById('usrEmail').value.trim();
-          const senha = document.getElementById('usrSenha').value.trim();
-          const nivel = document.getElementById('usrNivel').value;
+        function salvarNovoUsuario() {
+          var nome = document.getElementById('usrNome').value.trim();
+          var email = document.getElementById('usrEmail').value.trim();
+          var senha = document.getElementById('usrSenha').value.trim();
+          var nivel = document.getElementById('usrNivel').value;
 
           if (!nome || !email || !senha) {
             alert('Preencha nome, e-mail e senha.');
             return;
           }
 
-          const res = await fetch('/api/usuarios', {
+          fetch('/api/usuarios', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nome, email, senha, nivel, operador: usuarioAtualEmail })
+            body: JSON.stringify({ nome: nome, email: email, senha: senha, nivel: nivel, operador: usuarioAtualEmail })
+          })
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+            if (data.success) {
+              alert('✅ Novo usuário cadastrado!');
+              carregarUsuarios();
+            } else {
+              alert(data.error || 'Erro ao cadastrar usuário.');
+            }
           });
-
-          const data = await res.json();
-          if (data.success) {
-            alert('✅ Novo usuário cadastrado!');
-            carregarUsuarios();
-          } else {
-            alert(data.error || 'Erro ao cadastrar usuário.');
-          }
         }
 
         function imprimirPDF() {
           if (!ultimoMembroCadastrado) return;
-          const janela = window.open('', '_blank');
-          janela.document.write(\`
-            <html>
-            <head>
-              <title>Credencial DPCRIM - \${ultimoMembroCadastrado.nome}</title>
-              <style>
-                body { font-family: sans-serif; padding: 20px; text-align: center; }
-                .card { width: 350px; border: 2px solid #0f172a; border-radius: 12px; padding: 16px; margin: 0 auto; text-align: left; background: #0f172a; color: white; }
-                .badge { background: #b91c1c; color: white; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; display: inline-block; }
-                .foto { width: 70px; height: 90px; object-fit: cover; border-radius: 6px; border: 1px solid #334155; }
-                .flex { display: flex; gap: 12px; align-items: center; margin-top: 10px; }
-                .qr { width: 70px; height: 70px; background: white; padding: 2px; border-radius: 6px; }
-                .footer { margin-top: 12px; border-top: 1px solid #334155; pt: 8px; font-size: 9px; color: #94a3b8; display: flex; justify-content: space-between; align-items: center; }
-              </style>
-            </head>
-            <body>
-              <div class="card">
-                <div class="badge">DPCRIM • Carteira Oficial</div>
-                <div class="flex">
-                  \${ultimoMembroCadastrado.fotoBase64 ? \`<img src="\${ultimoMembroCadastrado.fotoBase64}" class="foto">\` : ''}
-                  <div>
-                    <h3 style="margin:0; font-size:14px;">\${ultimoMembroCadastrado.nome}</h3>
-                    <p style="margin:2px 0; font-size:11px; color:#cbd5e1;">INSCRIÇÃO: \${ultimoMembroCadastrado.inscricao}</p>
-                    <p style="margin:2px 0; font-size:11px; color:#cbd5e1;">CPF: \${ultimoMembroCadastrado.cpfMascarado}</p>
-                    <p style="margin:2px 0; font-size:11px; color:#fca5a5; font-weight:bold;">\${ultimoMembroCadastrado.curso}</p>
-                  </div>
-                </div>
-                <div class="footer">
-                  <div>
-                    <p style="margin:0;">REGISTRO: \${ultimoMembroCadastrado.codigo}</p>
-                    <p style="margin:0;">EMISSÃO: \${ultimoMembroCadastrado.dataEmissao}</p>
-                  </div>
-                  <img src="\${ultimoMembroCadastrado.qrCode}" class="qr">
-                </div>
-              </div>
-              <script>window.print();</script>
-            </body>
-            </html>
-          \`);
+          var janela = window.open('', '_blank');
+          var fotoHtml = ultimoMembroCadastrado.fotoBase64 ? '<img src="' + ultimoMembroCadastrado.fotoBase64 + '" class="foto">' : '';
+          
+          janela.document.write(
+            '<html><head><title>Credencial DPCRIM - ' + ultimoMembroCadastrado.nome + '</title>' +
+            '<style>' +
+              'body { font-family: sans-serif; padding: 20px; text-align: center; }' +
+              '.card { width: 350px; border: 2px solid #0f172a; border-radius: 12px; padding: 16px; margin: 0 auto; text-align: left; background: #0f172a; color: white; }' +
+              '.badge { background: #b91c1c; color: white; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; display: inline-block; }' +
+              '.foto { width: 70px; height: 90px; object-fit: cover; border-radius: 6px; border: 1px solid #334155; }' +
+              '.flex { display: flex; gap: 12px; align-items: center; margin-top: 10px; }' +
+              '.qr { width: 70px; height: 70px; background: white; padding: 2px; border-radius: 6px; }' +
+              '.footer { margin-top: 12px; border-top: 1px solid #334155; padding-top: 8px; font-size: 9px; color: #94a3b8; display: flex; justify-content: space-between; align-items: center; }' +
+            '</style></head><body>' +
+            '<div class="card">' +
+              '<div class="badge">DPCRIM • Carteira Oficial</div>' +
+              '<div class="flex">' +
+                fotoHtml +
+                '<div>' +
+                  '<h3 style="margin:0; font-size:14px;">' + ultimoMembroCadastrado.nome + '</h3>' +
+                  '<p style="margin:2px 0; font-size:11px; color:#cbd5e1;">INSCRIÇÃO: ' + ultimoMembroCadastrado.inscricao + '</p>' +
+                  '<p style="margin:2px 0; font-size:11px; color:#cbd5e1;">CPF: ' + ultimoMembroCadastrado.cpfMascarado + '</p>' +
+                  '<p style="margin:2px 0; font-size:11px; color:#fca5a5; font-weight:bold;">' + ultimoMembroCadastrado.curso + '</p>' +
+                '</div>' +
+              '</div>' +
+              '<div class="footer">' +
+                '<div>' +
+                  '<p style="margin:0;">REGISTRO: ' + ultimoMembroCadastrado.codigo + '</p>' +
+                  '<p style="margin:0;">EMISSÃO: ' + ultimoMembroCadastrado.dataEmissao + '</p>' +
+                '</div>' +
+                '<img src="' + ultimoMembroCadastrado.qrCode + '" class="qr">' +
+              '</div>' +
+            '</div>' +
+            '<script>window.print();</script></body></html>'
+          );
         }
 
-        async function carregarListaMembros() {
-          const res = await fetch('/api/membros');
-          listaMembrosCache = await res.json();
-          renderizarTabela(listaMembrosCache);
+        function carregarListaMembros() {
+          fetch('/api/membros')
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+              listaMembrosCache = data;
+              renderizarTabela(listaMembrosCache);
+            });
         }
 
         function renderizarTabela(dados) {
-          const tbody = document.getElementById('tabelaMembros');
-          tbody.innerHTML = dados.map(m => \`
-            <tr class="hover:bg-slate-50 transition">
-              <td class="p-2.5"><img src="\${m.fotoBase64 || 'https://via.placeholder.com/40?text=FOTO'}" class="w-8 h-10 object-cover rounded border"></td>
-              <td class="p-2.5 font-bold text-slate-900">\${m.nome}</td>
-              <td class="p-2.5 font-semibold text-slate-700">\${m.inscricao}</td>
-              <td class="p-2.5 font-mono text-slate-600">\${m.cpfMascarado}</td>
-              <td class="p-2.5 text-slate-700">\${m.curso}</td>
-              <td class="p-2.5 text-center">
-                <button onclick="window.open('/validar/' + '\${m.tokenSeguro}', '_blank')" class="bg-slate-900 text-white text-[10px] font-bold px-2.5 py-1 rounded">🔍 Ver Registro</button>
-              </td>
-            </tr>
-          \`).join('');
+          var tbody = document.getElementById('tabelaMembros');
+          tbody.innerHTML = dados.map(function(m) {
+            var foto = m.fotoBase64 || 'https://via.placeholder.com/40?text=FOTO';
+            return '<tr class="hover:bg-slate-50 transition">' +
+              '<td class="p-2.5"><img src="' + foto + '" class="w-8 h-10 object-cover rounded border"></td>' +
+              '<td class="p-2.5 font-bold text-slate-900">' + m.nome + '</td>' +
+              '<td class="p-2.5 font-semibold text-slate-700">' + m.inscricao + '</td>' +
+              '<td class="p-2.5 font-mono text-slate-600">' + m.cpfMascarado + '</td>' +
+              '<td class="p-2.5 text-slate-700">' + m.curso + '</td>' +
+              '<td class="p-2.5 text-center">' +
+                '<button onclick="window.open(\'/validar/\' + \'' + m.tokenSeguro + '\', \'_blank\')" class="bg-slate-900 text-white text-[10px] font-bold px-2.5 py-1 rounded">🔍 Ver Registro</button>' +
+              '</td>' +
+            '</tr>';
+          }).join('');
         }
 
-        async function carregarUsuarios() {
-          const res = await fetch('/api/usuarios');
-          const dados = await res.json();
-          document.getElementById('tabelaUsuarios').innerHTML = dados.map(u => \`
-            <tr class="hover:bg-slate-50">
-              <td class="p-2.5 font-bold">\${u.nome}</td>
-              <td class="p-2.5 font-mono">\${u.email}</td>
-              <td class="p-2.5"><span class="bg-red-100 text-red-800 font-bold text-[10px] px-2 py-0.5 rounded">\${u.nivel}</span></td>
-              <td class="p-2.5 text-slate-500">\${u.dataCriacao}</td>
-            </tr>
-          \`).join('');
+        function carregarUsuarios() {
+          fetch('/api/usuarios')
+            .then(function(res) { return res.json(); })
+            .then(function(dados) {
+              document.getElementById('tabelaUsuarios').innerHTML = dados.map(function(u) {
+                return '<tr class="hover:bg-slate-50">' +
+                  '<td class="p-2.5 font-bold">' + u.nome + '</td>' +
+                  '<td class="p-2.5 font-mono">' + u.email + '</td>' +
+                  '<td class="p-2.5"><span class="bg-red-100 text-red-800 font-bold text-[10px] px-2 py-0.5 rounded">' + u.nivel + '</span></td>' +
+                  '<td class="p-2.5 text-slate-500">' + u.dataCriacao + '</td>' +
+                '</tr>';
+              }).join('');
+            });
         }
 
-        async function carregarLogs() {
-          const res = await fetch('/api/logs');
-          const dados = await res.json();
-          document.getElementById('tabelaLogs').innerHTML = dados.map(l => \`
-            <tr class="hover:bg-slate-50">
-              <td class="p-2.5 font-mono text-[11px] text-slate-500">\${l.dataHora}</td>
-              <td class="p-2.5 font-bold text-slate-800">\${l.usuario}</td>
-              <td class="p-2.5 font-bold text-red-700">\${l.acao}</td>
-              <td class="p-2.5 text-slate-600">\${l.detalhe}</td>
-            </tr>
-          \`).join('');
+        function carregarLogs() {
+          fetch('/api/logs')
+            .then(function(res) { return res.json(); })
+            .then(function(dados) {
+              document.getElementById('tabelaLogs').innerHTML = dados.map(function(l) {
+                return '<tr class="hover:bg-slate-50">' +
+                  '<td class="p-2.5 font-mono text-[11px] text-slate-500">' + l.dataHora + '</td>' +
+                  '<td class="p-2.5 font-bold text-slate-800">' + l.usuario + '</td>' +
+                  '<td class="p-2.5 font-bold text-red-700">' + l.acao + '</td>' +
+                  '<td class="p-2.5 text-slate-600">' + l.detalhe + '</td>' +
+                '</tr>';
+              }).join('');
+            });
         }
 
         function filtrarLista() {
-          const termo = document.getElementById('filtroLista').value.toLowerCase();
-          const filtrados = listaMembrosCache.filter(m => 
-            m.nome.toLowerCase().includes(termo) || 
-            m.inscricao.toLowerCase().includes(termo) || 
-            m.cpfMascarado.includes(termo)
-          );
+          var termo = document.getElementById('filtroLista').value.toLowerCase();
+          var filtrados = listaMembrosCache.filter(function(m) {
+            return m.nome.toLowerCase().indexOf(termo) !== -1 || 
+                   m.inscricao.toLowerCase().indexOf(termo) !== -1 || 
+                   m.cpfMascarado.indexOf(termo) !== -1;
+          });
           renderizarTabela(filtrados);
         }
       </script>
@@ -561,41 +565,41 @@ app.get('/filiados', (req, res) => {
       </footer>
 
       <script>
-        async function buscarFiliado() {
-          const cpf = document.getElementById('buscaCPF').value.trim();
+        function buscarFiliado() {
+          var cpf = document.getElementById('buscaCPF').value.trim();
           if (!cpf) {
             alert('Digite um CPF.');
             return;
           }
-          const res = await fetch('/api/filiados/buscar?cpf=' + encodeURIComponent(cpf));
-          const data = await res.json();
+          fetch('/api/filiados/buscar?cpf=' + encodeURIComponent(cpf))
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+              var container = document.getElementById('resultadoBusca');
+              container.classList.remove('hidden');
 
-          const container = document.getElementById('resultadoBusca');
-          container.classList.remove('hidden');
-
-          if (data.encontrado) {
-            container.innerHTML = \`
-              <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 p-3 rounded-xl font-bold text-center text-xs">
-                ✅ REGISTRO OFICIAL ENCONTRADO E VÁLIDO
-              </div>
-              \${data.membro.fotoBase64 ? \`<img src="\${data.membro.fotoBase64}" class="w-20 h-24 mx-auto rounded-lg object-cover border my-2">\` : ''}
-              <div class="text-xs space-y-1.5 border-t border-b py-3">
-                <p><strong>NOME:</strong> \${data.membro.nome}</p>
-                <p><strong>INSCRIÇÃO:</strong> \${data.membro.inscricao}</p>
-                <p><strong>DOCUMENTO:</strong> \${data.membro.cpfMascarado}</p>
-                <p><strong>CURSO:</strong> \${data.membro.curso}</p>
-                <p><strong>REGISTRO:</strong> \${data.membro.codigo}</p>
-                <p><strong>EMISSÃO:</strong> \${data.membro.dataEmissao}</p>
-                <p><strong>STATUS:</strong> <span class="bg-emerald-200 text-emerald-900 font-bold px-2 py-0.5 rounded text-[10px]">ATIVO</span></p>
-              </div>
-            \`;
-          } else {
-            container.innerHTML = \`
-              <div class="bg-red-50 border border-red-300 text-red-800 p-3 rounded-xl font-bold text-center text-xs">
-                ❌ NENHUM FILIADO ENCONTRADO COM ESTE CPF
-              </div>
-            \`;
-          }
+              if (data.encontrado) {
+                var fotoHtml = data.membro.fotoBase64 ? '<img src="' + data.membro.fotoBase64 + '" class="w-20 h-24 mx-auto rounded-lg object-cover border my-2">' : '';
+                container.innerHTML = 
+                  '<div class="bg-emerald-50 border border-emerald-300 text-emerald-800 p-3 rounded-xl font-bold text-center text-xs">' +
+                    '✅ REGISTRO OFICIAL ENCONTRADO E VÁLIDO' +
+                  '</div>' +
+                  fotoHtml +
+                  '<div class="text-xs space-y-1.5 border-t border-b py-3">' +
+                    '<p><strong>NOME:</strong> ' + data.membro.nome + '</p>' +
+                    '<p><strong>INSCRIÇÃO:</strong> ' + data.membro.inscricao + '</p>' +
+                    '<p><strong>DOCUMENTO:</strong> ' + data.membro.cpfMascarado + '</p>' +
+                    '<p><strong>CURSO:</strong> ' + data.membro.curso + '</p>' +
+                    '<p><strong>REGISTRO:</strong> ' + data.membro.codigo + '</p>' +
+                    '<p><strong>EMISSÃO:</strong> ' + data.membro.dataEmissao + '</p>' +
+                    '<p><strong>STATUS:</strong> <span class="bg-emerald-200 text-emerald-900 font-bold px-2 py-0.5 rounded text-[10px]">ATIVO</span></p>' +
+                  '</div>';
+              } else {
+                container.innerHTML = 
+                  '<div class="bg-red-50 border border-red-300 text-red-800 p-3 rounded-xl font-bold text-center text-xs">' +
+                    '❌ NENHUM FILIADO ENCONTRADO COM ESTE CPF' +
+                  '</div>';
+              }
+            });
         }
       </script>
     </body>
