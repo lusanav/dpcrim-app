@@ -93,7 +93,7 @@ app.get('/', (req, res) => {
             <p class="text-xs text-slate-500">Acesso exclusivo para administradores e operadores</p>
           </div>
 
-          <form id="formLogin" class="space-y-4">
+          <form id="formLogin" onsubmit="realizarLogin(event)" class="space-y-4">
             <div>
               <label class="block text-xs font-bold uppercase text-slate-700 mb-1">E-mail Administrativo</label>
               <input type="email" id="email" required value="admin@dpcrim.org" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
@@ -324,28 +324,32 @@ app.get('/', (req, res) => {
           if (aba === 'logs') carregarLogs();
         }
 
-        // Login
-        document.getElementById('formLogin').addEventListener('submit', async (e) => {
-          e.preventDefault();
+        // Função de Login Direta
+        async function realizarLogin(e) {
+          if (e) e.preventDefault();
           const email = document.getElementById('email').value;
           const senha = document.getElementById('senha').value;
 
-          const res = await fetch('/api/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, senha })
-          });
+          try {
+            const res = await fetch('/api/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, senha })
+            });
 
-          const data = await res.json();
-          if (data.success) {
-            usuarioAtualEmail = email;
-            document.getElementById('usrLogado').innerText = 'Operador: ' + email;
-            document.getElementById('telaLogin').classList.add('hidden');
-            document.getElementById('painelAdmin').classList.remove('hidden');
-          } else {
-            alert('Acesso negado: E-mail ou senha inválidos.');
+            const data = await res.json();
+            if (data.success) {
+              usuarioAtualEmail = email;
+              document.getElementById('usrLogado').innerText = 'Operador: ' + email;
+              document.getElementById('telaLogin').classList.add('hidden');
+              document.getElementById('painelAdmin').classList.remove('hidden');
+            } else {
+              alert('Acesso negado: E-mail ou senha inválidos.');
+            }
+          } catch (err) {
+            alert('Erro de conexão ao tentar fazer login.');
           }
-        });
+        }
 
         // Cadastro Membro
         document.getElementById('formCadastroMembro').addEventListener('submit', async (e) => {
