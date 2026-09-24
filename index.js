@@ -64,40 +64,40 @@ app.get('/', (req, res) => {
       <title>DPCRIM - Painel de Gestão</title>
       <script src="https://cdn.tailwindcss.com"></script>
     </head>
-    <body class="bg-slate-900 min-h-screen flex items-center justify-center p-4 font-sans">
+    <body class="bg-slate-900 min-h-screen flex flex-col justify-between p-4 font-sans text-slate-800">
       
-      <!-- TELA DE LOGIN -->
-      <div id="telaLogin" class="max-w-md w-full bg-white p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-700">
-        <div class="text-center mb-6">
-          <div class="bg-red-700 text-white font-black text-xl py-3 px-6 rounded-xl inline-block shadow">DPCRIM</div>
-          <h1 class="text-sm font-bold text-slate-800 uppercase tracking-wider mt-3">Painel Administrativo</h1>
-          <p class="text-xs text-slate-500">Acesso exclusivo para administradores e operadores</p>
+      <div class="my-auto flex flex-col items-center justify-center w-full">
+        <!-- TELA DE LOGIN -->
+        <div id="telaLogin" class="max-w-md w-full bg-white p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-700">
+          <div class="text-center mb-6">
+            <div class="bg-red-700 text-white font-black text-xl py-3 px-6 rounded-xl inline-block shadow">DPCRIM</div>
+            <h1 class="text-sm font-bold text-slate-800 uppercase tracking-wider mt-3">Painel Administrativo</h1>
+            <p class="text-xs text-slate-500">Acesso exclusivo para administradores e operadores</p>
+          </div>
+
+          <form id="formLogin" class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold uppercase text-slate-700 mb-1">E-mail Administrativo</label>
+              <input type="email" id="email" required placeholder="admin@dpcrim.org" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Senha de Segurança</label>
+              <input type="password" id="senha" required placeholder="••••••••" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
+            </div>
+            <button type="submit" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3.5 rounded-xl text-sm shadow-md transition uppercase">
+              ENTRAR NO PAINEL
+            </button>
+          </form>
+
+          <div class="mt-6 border-t pt-4 text-center">
+            <a href="/filiados" class="text-xs text-slate-600 hover:text-red-700 font-bold underline">
+              🔍 Ir para a Consulta Pública de Filiados
+            </a>
+          </div>
         </div>
 
-        <form id="formLogin" class="space-y-4">
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">E-mail Administrativo</label>
-            <input type="email" id="email" required placeholder="admin@dpcrim.org" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
-          </div>
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Senha de Segurança</label>
-            <input type="password" id="senha" required placeholder="••••••••" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
-          </div>
-          <button type="submit" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3.5 rounded-xl text-sm shadow-md transition uppercase">
-            ENTRAR NO PAINEL
-          </button>
-        </form>
-
-        <div class="mt-6 border-t pt-4 text-center">
-          <a href="/filiados" class="text-xs text-slate-600 hover:text-red-700 font-bold underline">
-            🔍 Ir para a Consulta Pública de Filiados
-          </a>
-        </div>
-      </div>
-
-      <!-- PAINEL ADMINISTRATIVO (EXIBIDO APÓS LOGIN) -->
-      <div id="painelAdmin" class="hidden fixed inset-0 bg-slate-100 overflow-y-auto p-4 sm:p-6">
-        <div class="max-w-4xl mx-auto bg-white p-6 rounded-2xl shadow-xl border border-slate-200">
+        <!-- PAINEL ADMINISTRATIVO (EXIBIDO APÓS LOGIN) -->
+        <div id="painelAdmin" class="hidden w-full max-w-4xl bg-white p-6 rounded-2xl shadow-xl border border-slate-200 my-4">
           
           <div class="flex justify-between items-center bg-slate-900 text-white p-4 rounded-xl mb-6">
             <div>
@@ -126,6 +126,10 @@ app.get('/', (req, res) => {
                   <div class="sm:col-span-2">
                     <label class="block text-xs font-bold text-slate-700 mb-1">NOME COMPLETO *</label>
                     <input type="text" id="cadNome" required placeholder="Ex: Dr. Carlos Eduardo Silva" class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">NÚMERO DE INSCRIÇÃO *</label>
+                    <input type="text" id="cadInscricao" required placeholder="Ex: INC-2026-001" class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm">
                   </div>
                   <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">CPF *</label>
@@ -161,17 +165,24 @@ app.get('/', (req, res) => {
               </button>
             </form>
 
+            <!-- Alerta visual de gravação com sucesso -->
             <div id="resCadastro" class="mt-6 hidden border-t pt-4 text-center space-y-4">
-              <p class="text-emerald-700 font-bold text-sm">✅ Perito cadastrado com sucesso!</p>
-              <div id="cardCredencial" class="max-w-sm mx-auto bg-slate-900 text-white p-4 rounded-xl text-left border"></div>
-              <img id="resQR" src="" class="w-32 h-32 mx-auto border p-1 bg-white rounded-lg">
+              <div class="bg-emerald-100 border border-emerald-400 text-emerald-800 p-4 rounded-xl text-center font-bold text-sm">
+                🎉 Cadastro gravado com sucesso no sistema DPCRIM!
+              </div>
+
+              <div id="cardCredencial" class="max-w-md mx-auto bg-slate-900 text-white p-5 rounded-2xl text-left border border-slate-700 shadow-xl space-y-3"></div>
+
+              <button onclick="imprimirPDF()" class="bg-red-700 hover:bg-red-800 text-white font-bold py-3 px-6 rounded-xl text-xs uppercase shadow-md transition">
+                🖨️ IMPRIMIR / GERAR PDF DA CREDENCIAL
+              </button>
             </div>
           </div>
 
           <!-- ABA 2: LISTA DE PESSOAS CADASTRADAS -->
           <div id="abaLista" class="hidden space-y-4">
             <div class="flex justify-between items-center mb-2">
-              <input type="text" id="filtroLista" onkeyup="filtrarLista()" placeholder="🔍 Pesquisar por nome ou CPF..." class="w-full p-2.5 border rounded-xl bg-slate-50 text-xs outline-none focus:ring-2 focus:ring-slate-900">
+              <input type="text" id="filtroLista" onkeyup="filtrarLista()" placeholder="🔍 Pesquisar por nome, CPF ou inscrição..." class="w-full p-2.5 border rounded-xl bg-slate-50 text-xs outline-none focus:ring-2 focus:ring-slate-900">
             </div>
 
             <div class="overflow-x-auto border rounded-xl">
@@ -180,9 +191,9 @@ app.get('/', (req, res) => {
                   <tr class="bg-slate-900 text-white uppercase text-[10px] tracking-wider">
                     <th class="p-3">Foto</th>
                     <th class="p-3">Nome Completo</th>
+                    <th class="p-3">Inscrição</th>
                     <th class="p-3">CPF</th>
                     <th class="p-3">Curso</th>
-                    <th class="p-3">Registro</th>
                     <th class="p-3 text-center">Ações</th>
                   </tr>
                 </thead>
@@ -196,9 +207,15 @@ app.get('/', (req, res) => {
         </div>
       </div>
 
+      <!-- RODAPÉ DE CRÉDITOS -->
+      <footer class="w-full text-center py-4 text-xs text-slate-400 border-t border-slate-800 mt-auto">
+        Desenvolvido por <strong class="text-white">Lusana Verissimo</strong>
+      </footer>
+
       <script>
         let fotoBase64 = '';
         let listaMembrosCache = [];
+        let ultimoMembroCadastrado = null;
 
         document.getElementById('cadFoto')?.addEventListener('change', (e) => {
           const file = e.target.files[0];
@@ -209,7 +226,6 @@ app.get('/', (req, res) => {
           }
         });
 
-        // Alternar entre abas do Painel Admin
         function alternarAbaAdmin(aba) {
           const isCad = aba === 'cad';
           document.getElementById('abaCadastro').classList.toggle('hidden', !isCad);
@@ -249,6 +265,7 @@ app.get('/', (req, res) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               nome: document.getElementById('cadNome').value,
+              inscricao: document.getElementById('cadInscricao').value,
               cpf: document.getElementById('cadCPF').value,
               rg: document.getElementById('cadRG').value,
               curso: document.getElementById('cadCurso').value,
@@ -259,21 +276,75 @@ app.get('/', (req, res) => {
 
           const data = await res.json();
           if (data.success) {
-            document.getElementById('resQR').src = data.qrCode;
+            ultimoMembroCadastrado = { ...data.membro, qrCode: data.qrCode };
+            
             document.getElementById('cardCredencial').innerHTML = \`
-              <p class="text-xs text-red-400 font-bold uppercase">DPCRIM • Credencial</p>
-              <p class="font-bold text-sm text-white">\${data.membro.nome}</p>
-              <p class="text-xs text-slate-300">CPF: \${data.membro.cpfMascarado}</p>
-              <p class="text-xs text-slate-300">Curso: \${data.membro.curso}</p>
-              <p class="text-[10px] text-slate-400 mt-2">REGISTRO: \${data.membro.codigo}</p>
+              <div class="bg-red-700 text-[10px] font-bold px-2 py-0.5 rounded w-max uppercase mb-2">DPCRIM • Credencial</div>
+              <div class="flex space-x-4 items-center">
+                \${data.membro.fotoBase64 ? \`<img src="\${data.membro.fotoBase64}" class="w-16 h-20 object-cover rounded border border-slate-700">\` : ''}
+                <div class="text-xs space-y-1">
+                  <p class="font-bold text-sm text-white">\${data.membro.nome}</p>
+                  <p class="text-slate-300">INSCRIÇÃO: \${data.membro.inscricao}</p>
+                  <p class="text-slate-300">CPF: \${data.membro.cpfMascarado}</p>
+                  <p class="text-red-300 font-semibold">\${data.membro.curso}</p>
+                </div>
+              </div>
+              <div class="mt-3 pt-2 border-t border-slate-800 text-[10px] text-slate-400 flex justify-between items-center">
+                <span>REGISTRO: \${data.membro.codigo}</span>
+                <img src="\${data.qrCode}" class="w-12 h-12 bg-white p-0.5 rounded">
+              </div>
             \`;
+
             document.getElementById('resCadastro').classList.remove('hidden');
             document.getElementById('formCadastroMembro').reset();
             fotoBase64 = '';
+            alert('✅ Membro cadastrado e gravado com sucesso!');
           }
         });
 
-        // Carregar Tabela de Membros
+        function imprimirPDF() {
+          if (!ultimoMembroCadastrado) return;
+          const janela = window.open('', '_blank');
+          janela.document.write(\`
+            <html>
+            <head>
+              <title>Credencial DPCRIM - \${ultimoMembroCadastrado.nome}</title>
+              <style>
+                body { font-family: sans-serif; padding: 20px; background: #fff; text-align: center; }
+                .card { width: 350px; border: 2px solid #0f172a; border-radius: 12px; padding: 16px; margin: 0 auto; text-align: left; background: #0f172a; color: white; }
+                .badge { background: #b91c1c; color: white; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; display: inline-block; }
+                .foto { width: 70px; height: 90px; object-fit: cover; border-radius: 6px; border: 1px solid #334155; }
+                .flex { display: flex; gap: 12px; align-items: center; margin-top: 10px; }
+                .qr { width: 70px; height: 70px; background: white; padding: 2px; border-radius: 6px; }
+                .footer { margin-top: 12px; border-top: 1px solid #334155; pt: 8px; font-size: 9px; color: #94a3b8; display: flex; justify-content: space-between; align-items: center; }
+              </style>
+            </head>
+            <body>
+              <div class="card">
+                <div class="badge">DPCRIM • Carteira Oficial</div>
+                <div class="flex">
+                  \${ultimoMembroCadastrado.fotoBase64 ? \`<img src="\${ultimoMembroCadastrado.fotoBase64}" class="foto">\` : ''}
+                  <div>
+                    <h3 style="margin:0; font-size:14px;">\${ultimoMembroCadastrado.nome}</h3>
+                    <p style="margin:2px 0; font-size:11px; color:#cbd5e1;">INSCRIÇÃO: \${ultimoMembroCadastrado.inscricao}</p>
+                    <p style="margin:2px 0; font-size:11px; color:#cbd5e1;">CPF: \${ultimoMembroCadastrado.cpfMascarado}</p>
+                    <p style="margin:2px 0; font-size:11px; color:#fca5a5; font-weight:bold;">\${ultimoMembroCadastrado.curso}</p>
+                  </div>
+                </div>
+                <div class="footer">
+                  <div>
+                    <p style="margin:0;">REGISTRO: \${ultimoMembroCadastrado.codigo}</p>
+                    <p style="margin:0;">EMISSÃO: \${ultimoMembroCadastrado.dataEmissao}</p>
+                  </div>
+                  <img src="\${ultimoMembroCadastrado.qrCode}" class="qr">
+                </div>
+              </div>
+              <script>window.print();</script>
+            </body>
+            </html>
+          \`);
+        }
+
         async function carregarListaMembros() {
           const res = await fetch('/api/membros');
           listaMembrosCache = await res.json();
@@ -293,9 +364,9 @@ app.get('/', (req, res) => {
                 <img src="\${m.fotoBase64 || 'https://via.placeholder.com/40?text=FOTO'}" class="w-8 h-10 object-cover rounded border">
               </td>
               <td class="p-2.5 font-bold text-slate-900">\${m.nome}</td>
+              <td class="p-2.5 font-semibold text-slate-700">\${m.inscricao}</td>
               <td class="p-2.5 font-mono text-slate-600">\${m.cpfMascarado}</td>
               <td class="p-2.5 text-slate-700">\${m.curso}</td>
-              <td class="p-2.5 font-semibold text-red-700">\${m.codigo}</td>
               <td class="p-2.5 text-center">
                 <button onclick="verValidacao('\${m.tokenSeguro}')" class="bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-2.5 py-1 rounded shadow">
                   🔍 Ver Registro
@@ -308,7 +379,10 @@ app.get('/', (req, res) => {
         function filtrarLista() {
           const termo = document.getElementById('filtroLista').value.toLowerCase();
           const filtrados = listaMembrosCache.filter(m => 
-            m.nome.toLowerCase().includes(termo) || m.cpfMascarado.includes(termo) || m.codigo.toLowerCase().includes(termo)
+            m.nome.toLowerCase().includes(termo) || 
+            m.inscricao.toLowerCase().includes(termo) || 
+            m.cpfMascarado.includes(termo) || 
+            m.codigo.toLowerCase().includes(termo)
           );
           renderizarTabela(filtrados);
         }
@@ -335,30 +409,37 @@ app.get('/filiados', (req, res) => {
       <title>DPCRIM - Consulta de Filiados</title>
       <script src="https://cdn.tailwindcss.com"></script>
     </head>
-    <body class="bg-slate-100 min-h-screen flex items-center justify-center p-4 font-sans">
+    <body class="bg-slate-100 min-h-screen flex flex-col justify-between p-4 font-sans text-slate-800">
       
-      <div class="max-w-md w-full bg-white p-6 rounded-2xl shadow-xl border border-slate-200 text-center">
-        <div class="bg-slate-900 text-white p-4 rounded-xl mb-6">
-          <h1 class="text-xl font-bold uppercase tracking-wide">DPCRIM</h1>
-          <p class="text-xs text-slate-300">Portal Público de Validação de Filiados</p>
-        </div>
-
-        <form id="formBusca" class="space-y-4 mb-6">
-          <div>
-            <label class="block text-xs font-bold uppercase text-slate-700 mb-1 text-left">Consultar por CPF do Filiado</label>
-            <input type="text" id="buscaCPF" required placeholder="Digite o CPF (somente números)" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-slate-900">
+      <div class="my-auto flex flex-col items-center justify-center w-full">
+        <div class="max-w-md w-full bg-white p-6 rounded-2xl shadow-xl border border-slate-200 text-center">
+          <div class="bg-slate-900 text-white p-4 rounded-xl mb-6">
+            <h1 class="text-xl font-bold uppercase tracking-wide">DPCRIM</h1>
+            <p class="text-xs text-slate-300">Portal Público de Validação de Filiados</p>
           </div>
-          <button type="submit" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3.5 rounded-xl text-sm shadow uppercase">
-            BUSCAR FILIADO
-          </button>
-        </form>
 
-        <div id="resultadoBusca" class="hidden text-left border-t pt-4 space-y-3"></div>
+          <form id="formBusca" class="space-y-4 mb-6">
+            <div>
+              <label class="block text-xs font-bold uppercase text-slate-700 mb-1 text-left">Consultar por CPF do Filiado</label>
+              <input type="text" id="buscaCPF" required placeholder="Digite o CPF (somente números)" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-slate-900">
+            </div>
+            <button type="submit" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3.5 rounded-xl text-sm shadow uppercase">
+              BUSCAR FILIADO
+            </button>
+          </form>
 
-        <div class="mt-6 border-t pt-4">
-          <a href="/" class="text-xs text-slate-500 hover:text-slate-800 font-bold">🔒 Área Administrativa (Restrita)</a>
+          <div id="resultadoBusca" class="hidden text-left border-t pt-4 space-y-3"></div>
+
+          <div class="mt-6 border-t pt-4">
+            <a href="/" class="text-xs text-slate-500 hover:text-slate-800 font-bold">🔒 Área Administrativa (Restrita)</a>
+          </div>
         </div>
       </div>
+
+      <!-- RODAPÉ DE CRÉDITOS -->
+      <footer class="w-full text-center py-4 text-xs text-slate-500 border-t border-slate-200 mt-auto">
+        Desenvolvido por <strong class="text-slate-800">Lusana Verissimo</strong>
+      </footer>
 
       <script>
         document.getElementById('formBusca').addEventListener('submit', async (e) => {
@@ -378,6 +459,7 @@ app.get('/filiados', (req, res) => {
               \${data.membro.fotoBase64 ? \`<img src="\${data.membro.fotoBase64}" class="w-20 h-24 mx-auto rounded-lg object-cover border my-2">\` : ''}
               <div class="text-xs space-y-1.5 border-t border-b py-3">
                 <p><strong>NOME:</strong> \${data.membro.nome}</p>
+                <p><strong>INSCRIÇÃO:</strong> \${data.membro.inscricao}</p>
                 <p><strong>DOCUMENTO:</strong> \${data.membro.cpfMascarado}</p>
                 <p><strong>CURSO:</strong> \${data.membro.curso}</p>
                 <p><strong>REGISTRO:</strong> \${data.membro.codigo}</p>
@@ -424,23 +506,31 @@ app.get('/validar/:token', (req, res) => {
       <title>DPCRIM - Validação Oficial</title>
       <script src="https://cdn.tailwindcss.com"></script>
     </head>
-    <body class="bg-slate-100 min-h-screen flex items-center justify-center p-4 font-sans">
-      <div class="max-w-sm w-full bg-white p-6 rounded-2xl shadow-xl border border-slate-200 text-center">
-        <div class="bg-emerald-100 border border-emerald-300 text-emerald-800 p-3 rounded-xl font-bold text-xs mb-4">
-          ✅ AUTENTICIDADE VERIFICADA E VÁLIDA
+    <body class="bg-slate-100 min-h-screen flex flex-col justify-between p-4 font-sans text-slate-800">
+      <div class="my-auto flex flex-col items-center justify-center w-full">
+        <div class="max-w-sm w-full bg-white p-6 rounded-2xl shadow-xl border border-slate-200 text-center">
+          <div class="bg-emerald-100 border border-emerald-300 text-emerald-800 p-3 rounded-xl font-bold text-xs mb-4">
+            ✅ AUTENTICIDADE VERIFICADA E VÁLIDA
+          </div>
+          <h2 class="text-slate-900 font-extrabold text-xl">DPCRIM</h2>
+          <p class="text-[11px] text-slate-500 mb-4">Departamento de Pesquisas e Perícias Criminológicas</p>
+          ${membro.fotoBase64 ? `<img src="${membro.fotoBase64}" class="w-24 h-28 mx-auto rounded-lg object-cover border shadow-sm mb-4">` : ''}
+          <div class="text-left space-y-2 text-xs border-t border-b py-4">
+            <p><strong>NOME DO PERITO:</strong> ${membro.nome}</p>
+            <p><strong>INSCRIÇÃO:</strong> ${membro.inscricao}</p>
+            <p><strong>DOCUMENTO:</strong> ${membro.cpfMascarado}</p>
+            <p><strong>ESPECIALIDADE:</strong> ${membro.curso}</p>
+            <p><strong>REGISTRO OFICIAL:</strong> ${membro.codigo}</p>
+            <p><strong>DATA DE EMISSÃO:</strong> ${membro.dataEmissao}</p>
+          </div>
+          <p class="text-[10px] text-slate-400 mt-4">Documento assinado digitalmente via protocolo de segurança HMAC-SHA256 do DPCRIM.</p>
         </div>
-        <h2 class="text-slate-900 font-extrabold text-xl">DPCRIM</h2>
-        <p class="text-[11px] text-slate-500 mb-4">Departamento de Pesquisas e Perícias Criminológicas</p>
-        ${membro.fotoBase64 ? `<img src="${membro.fotoBase64}" class="w-24 h-28 mx-auto rounded-lg object-cover border shadow-sm mb-4">` : ''}
-        <div class="text-left space-y-2 text-xs border-t border-b py-4">
-          <p><strong>NOME DO PERITO:</strong> ${membro.nome}</p>
-          <p><strong>DOCUMENTO:</strong> ${membro.cpfMascarado}</p>
-          <p><strong>ESPECIALIDADE:</strong> ${membro.curso}</p>
-          <p><strong>REGISTRO OFICIAL:</strong> ${membro.codigo}</p>
-          <p><strong>DATA DE EMISSÃO:</strong> ${membro.dataEmissao}</p>
-        </div>
-        <p class="text-[10px] text-slate-400 mt-4">Documento assinado digitalmente via protocolo de segurança HMAC-SHA256 do DPCRIM.</p>
       </div>
+
+      <!-- RODAPÉ DE CRÉDITOS -->
+      <footer class="w-full text-center py-4 text-xs text-slate-500 border-t border-slate-200 mt-auto">
+        Desenvolvido por <strong class="text-slate-800">Lusana Verissimo</strong>
+      </footer>
     </body>
     </html>
   `);
@@ -470,6 +560,7 @@ app.post('/api/membros', async (req, res) => {
 
   const membro = {
     nome: data.nome,
+    inscricao: data.inscricao,
     cpfMascarado: mascararCPF(data.cpf),
     rg: data.rg || 'Não informado',
     curso: data.curso,
@@ -486,7 +577,6 @@ app.post('/api/membros', async (req, res) => {
   res.json({ success: true, membro, qrCode });
 });
 
-// Listar todos os membros para a tabela interna
 app.get('/api/membros', (req, res) => {
   const lista = Array.from(membrosDB.values());
   res.json(lista);
