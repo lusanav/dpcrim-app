@@ -19,7 +19,7 @@ usuariosDB.set('admin@dpcrim.org', {
   id: uuidv4(),
   nome: 'Diretoria DPCRIM',
   email: 'admin@dpcrim.org',
-  senha: 'admin' // Altere no primeiro acesso
+  senha: 'admin'
 });
 
 // FUNÇÕES DE SEGURANÇA E CRIPTOGRAFIA
@@ -44,7 +44,7 @@ function validarTokenSeguro(tokenBase64) {
     const payload = `${cpfLimpo}:${timestamp}`;
     const hmacEsperado = crypto.createHmac('sha256', CHAVE_SECRETA).update(payload).digest('hex');
 
-    if (hmacRecebido !== hmacEsperado) return null; // Detecta tentativas de adulteração
+    if (hmacRecebido !== hmacEsperado) return null;
     return cpfLimpo;
   } catch (e) {
     return null;
@@ -52,7 +52,7 @@ function validarTokenSeguro(tokenBase64) {
 }
 
 // ==========================================
-// 1. PÁGINA INICIAL: LOGIN RESTRITO PARA ADMINS
+// 1. PÁGINA INICIAL: LOGIN & PAINEL ADMIN
 // ==========================================
 app.get('/', (req, res) => {
   res.send(`
@@ -61,19 +61,19 @@ app.get('/', (req, res) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>DPCRIM - Acesso Restrito</title>
+      <title>DPCRIM - Painel de Gestão</title>
       <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-900 min-h-screen flex items-center justify-center p-4 font-sans">
       
-      <div class="max-w-md w-full bg-white p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-700">
+      <!-- TELA DE LOGIN -->
+      <div id="telaLogin" class="max-w-md w-full bg-white p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-700">
         <div class="text-center mb-6">
           <div class="bg-red-700 text-white font-black text-xl py-3 px-6 rounded-xl inline-block shadow">DPCRIM</div>
           <h1 class="text-sm font-bold text-slate-800 uppercase tracking-wider mt-3">Painel Administrativo</h1>
           <p class="text-xs text-slate-500">Acesso exclusivo para administradores e operadores</p>
         </div>
 
-        <!-- FORMULÁRIO DE LOGIN -->
         <form id="formLogin" class="space-y-4">
           <div>
             <label class="block text-xs font-bold uppercase text-slate-700 mb-1">E-mail Administrativo</label>
@@ -95,69 +95,110 @@ app.get('/', (req, res) => {
         </div>
       </div>
 
-      <!-- PAINEL DE CADASTRO (EXIBIDO APÓS AUTENTICAÇÃO) -->
+      <!-- PAINEL ADMINISTRATIVO (EXIBIDO APÓS LOGIN) -->
       <div id="painelAdmin" class="hidden fixed inset-0 bg-slate-100 overflow-y-auto p-4 sm:p-6">
-        <div class="max-w-3xl mx-auto bg-white p-6 rounded-2xl shadow-xl border border-slate-200">
+        <div class="max-w-4xl mx-auto bg-white p-6 rounded-2xl shadow-xl border border-slate-200">
+          
           <div class="flex justify-between items-center bg-slate-900 text-white p-4 rounded-xl mb-6">
             <div>
               <h2 class="font-bold text-lg">DPCRIM • Painel Interno</h2>
-              <p class="text-xs text-slate-300">Emissão de Credenciais e Gestão de Membros</p>
+              <p class="text-xs text-slate-300">Gestão do Sistema de Credenciamento</p>
             </div>
-            <button onclick="location.reload()" class="bg-red-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold">SAIR</button>
+            <button onclick="location.reload()" class="bg-red-700 hover:bg-red-800 text-white text-xs px-3 py-1.5 rounded-lg font-bold">SAIR</button>
           </div>
 
-          <form id="formCadastroMembro" class="space-y-6">
-            <div class="border-b pb-4">
-              <h3 class="text-xs font-bold uppercase text-slate-800 mb-3">1. Dados do Membro Filiado</h3>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div class="sm:col-span-2">
-                  <label class="block text-xs font-bold text-slate-700 mb-1">NOME COMPLETO *</label>
-                  <input type="text" id="cadNome" required placeholder="Ex: Dr. Carlos Eduardo Silva" class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm">
-                </div>
-                <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1">CPF *</label>
-                  <input type="text" id="cadCPF" required placeholder="123.456.789-00" class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm">
-                </div>
-                <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1">RG / ÓRGÃO EXPEDIDOR</label>
-                  <input type="text" id="cadRG" placeholder="12.345.678-X SSP/SP" class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm">
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h3 class="text-xs font-bold uppercase text-slate-800 mb-3">2. Curso e Especialização</h3>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div class="sm:col-span-2">
-                  <label class="block text-xs font-bold text-slate-700 mb-1">CURSO / ESPECIALIDADE *</label>
-                  <input type="text" id="cadCurso" required placeholder="Ex: Perícia Forense Computacional" class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm">
-                </div>
-                <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1">CARGA HORÁRIA (HORAS)</label>
-                  <input type="number" id="cadCarga" placeholder="120" class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm">
-                </div>
-                <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1">FOTO DO PERITO</label>
-                  <input type="file" id="cadFoto" accept="image/*" class="w-full p-1 border rounded-lg bg-slate-50 text-xs">
-                </div>
-              </div>
-            </div>
-
-            <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl text-sm uppercase shadow">
-              CADASTRAR E EMITIR CREDENCIAL
+          <!-- ABAS DE NAVEGAÇÃO -->
+          <div class="flex border-b border-slate-200 mb-6 gap-2">
+            <button id="tabCadBtn" onclick="alternarAbaAdmin('cad')" class="py-2.5 px-4 font-bold text-xs uppercase rounded-t-lg bg-slate-900 text-white">
+              ➕ Cadastrar Novo Membro
             </button>
-          </form>
-
-          <div id="resCadastro" class="mt-6 hidden border-t pt-4 text-center space-y-4">
-            <p class="text-emerald-700 font-bold text-sm">✅ Perito cadastrado com sucesso!</p>
-            <div id="cardCredencial" class="max-w-sm mx-auto bg-slate-900 text-white p-4 rounded-xl text-left border"></div>
-            <img id="resQR" src="" class="w-32 h-32 mx-auto border p-1 bg-white rounded-lg">
+            <button id="tabListBtn" onclick="alternarAbaAdmin('list')" class="py-2.5 px-4 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600 hover:bg-slate-200">
+              📋 Lista de Pessoas Cadastradas
+            </button>
           </div>
+
+          <!-- ABA 1: FORMULÁRIO DE CADASTRO -->
+          <div id="abaCadastro">
+            <form id="formCadastroMembro" class="space-y-6">
+              <div class="border-b pb-4">
+                <h3 class="text-xs font-bold uppercase text-slate-800 mb-3">1. Dados do Membro Filiado</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div class="sm:col-span-2">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">NOME COMPLETO *</label>
+                    <input type="text" id="cadNome" required placeholder="Ex: Dr. Carlos Eduardo Silva" class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">CPF *</label>
+                    <input type="text" id="cadCPF" required placeholder="123.456.789-00" class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">RG / ÓRGÃO EXPEDIDOR</label>
+                    <input type="text" id="cadRG" placeholder="12.345.678-X SSP/SP" class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm">
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 class="text-xs font-bold uppercase text-slate-800 mb-3">2. Curso e Especialização</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div class="sm:col-span-2">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">CURSO / ESPECIALIDADE *</label>
+                    <input type="text" id="cadCurso" required placeholder="Ex: Perícia Forense Computacional" class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">CARGA HORÁRIA (HORAS)</label>
+                    <input type="number" id="cadCarga" placeholder="120" class="w-full p-2.5 border rounded-lg bg-slate-50 text-sm">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">FOTO DO PERITO</label>
+                    <input type="file" id="cadFoto" accept="image/*" class="w-full p-1 border rounded-lg bg-slate-50 text-xs">
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl text-sm uppercase shadow">
+                CADASTRAR E EMITIR CREDENCIAL
+              </button>
+            </form>
+
+            <div id="resCadastro" class="mt-6 hidden border-t pt-4 text-center space-y-4">
+              <p class="text-emerald-700 font-bold text-sm">✅ Perito cadastrado com sucesso!</p>
+              <div id="cardCredencial" class="max-w-sm mx-auto bg-slate-900 text-white p-4 rounded-xl text-left border"></div>
+              <img id="resQR" src="" class="w-32 h-32 mx-auto border p-1 bg-white rounded-lg">
+            </div>
+          </div>
+
+          <!-- ABA 2: LISTA DE PESSOAS CADASTRADAS -->
+          <div id="abaLista" class="hidden space-y-4">
+            <div class="flex justify-between items-center mb-2">
+              <input type="text" id="filtroLista" onkeyup="filtrarLista()" placeholder="🔍 Pesquisar por nome ou CPF..." class="w-full p-2.5 border rounded-xl bg-slate-50 text-xs outline-none focus:ring-2 focus:ring-slate-900">
+            </div>
+
+            <div class="overflow-x-auto border rounded-xl">
+              <table class="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr class="bg-slate-900 text-white uppercase text-[10px] tracking-wider">
+                    <th class="p-3">Foto</th>
+                    <th class="p-3">Nome Completo</th>
+                    <th class="p-3">CPF</th>
+                    <th class="p-3">Curso</th>
+                    <th class="p-3">Registro</th>
+                    <th class="p-3 text-center">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaMembros" class="divide-y divide-slate-200">
+                  <!-- Preenchido via JavaScript -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
         </div>
       </div>
 
       <script>
         let fotoBase64 = '';
+        let listaMembrosCache = [];
 
         document.getElementById('cadFoto')?.addEventListener('change', (e) => {
           const file = e.target.files[0];
@@ -168,7 +209,19 @@ app.get('/', (req, res) => {
           }
         });
 
-        // Validação de Login
+        // Alternar entre abas do Painel Admin
+        function alternarAbaAdmin(aba) {
+          const isCad = aba === 'cad';
+          document.getElementById('abaCadastro').classList.toggle('hidden', !isCad);
+          document.getElementById('abaLista').classList.toggle('hidden', isCad);
+
+          document.getElementById('tabCadBtn').className = isCad ? 'py-2.5 px-4 font-bold text-xs uppercase rounded-t-lg bg-slate-900 text-white' : 'py-2.5 px-4 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600 hover:bg-slate-200';
+          document.getElementById('tabListBtn').className = !isCad ? 'py-2.5 px-4 font-bold text-xs uppercase rounded-t-lg bg-slate-900 text-white' : 'py-2.5 px-4 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600 hover:bg-slate-200';
+
+          if (!isCad) carregarListaMembros();
+        }
+
+        // Login
         document.getElementById('formLogin').addEventListener('submit', async (e) => {
           e.preventDefault();
           const res = await fetch('/api/login', {
@@ -181,13 +234,14 @@ app.get('/', (req, res) => {
           });
           const data = await res.json();
           if (data.success) {
+            document.getElementById('telaLogin').classList.add('hidden');
             document.getElementById('painelAdmin').classList.remove('hidden');
           } else {
             alert('Acesso negado: E-mail ou senha inválidos.');
           }
         });
 
-        // Submissão do Cadastro
+        // Submeter Cadastro
         document.getElementById('formCadastroMembro').addEventListener('submit', async (e) => {
           e.preventDefault();
           const res = await fetch('/api/membros', {
@@ -214,8 +268,54 @@ app.get('/', (req, res) => {
               <p class="text-[10px] text-slate-400 mt-2">REGISTRO: \${data.membro.codigo}</p>
             \`;
             document.getElementById('resCadastro').classList.remove('hidden');
+            document.getElementById('formCadastroMembro').reset();
+            fotoBase64 = '';
           }
         });
+
+        // Carregar Tabela de Membros
+        async function carregarListaMembros() {
+          const res = await fetch('/api/membros');
+          listaMembrosCache = await res.json();
+          renderizarTabela(listaMembrosCache);
+        }
+
+        function renderizarTabela(dados) {
+          const tbody = document.getElementById('tabelaMembros');
+          if (dados.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-500">Nenhum membro cadastrado até o momento.</td></tr>';
+            return;
+          }
+
+          tbody.innerHTML = dados.map(m => \`
+            <tr class="hover:bg-slate-50 transition">
+              <td class="p-2.5">
+                <img src="\${m.fotoBase64 || 'https://via.placeholder.com/40?text=FOTO'}" class="w-8 h-10 object-cover rounded border">
+              </td>
+              <td class="p-2.5 font-bold text-slate-900">\${m.nome}</td>
+              <td class="p-2.5 font-mono text-slate-600">\${m.cpfMascarado}</td>
+              <td class="p-2.5 text-slate-700">\${m.curso}</td>
+              <td class="p-2.5 font-semibold text-red-700">\${m.codigo}</td>
+              <td class="p-2.5 text-center">
+                <button onclick="verValidacao('\${m.tokenSeguro}')" class="bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold px-2.5 py-1 rounded shadow">
+                  🔍 Ver Registro
+                </button>
+              </td>
+            </tr>
+          \`).join('');
+        }
+
+        function filtrarLista() {
+          const termo = document.getElementById('filtroLista').value.toLowerCase();
+          const filtrados = listaMembrosCache.filter(m => 
+            m.nome.toLowerCase().includes(termo) || m.cpfMascarado.includes(termo) || m.codigo.toLowerCase().includes(termo)
+          );
+          renderizarTabela(filtrados);
+        }
+
+        function verValidacao(token) {
+          window.open('/validar/' + token, '_blank');
+        }
       </script>
     </body>
     </html>
@@ -223,7 +323,7 @@ app.get('/', (req, res) => {
 });
 
 // ==========================================
-// 2. LINK DOS FILIADOS: CONSULTA PÚBLICA & QR CODE
+// 2. PORTAL DE CONSULTA PÚBLICA DE FILIADOS
 // ==========================================
 app.get('/filiados', (req, res) => {
   res.send(`
@@ -300,7 +400,7 @@ app.get('/filiados', (req, res) => {
 });
 
 // ==========================================
-// 3. ENDPOINT DE VALIDAÇÃO VIA QR CODE SEGURO
+// 3. PÁGINA DE VALIDAÇÃO (QR CODE SEGURO)
 // ==========================================
 app.get('/validar/:token', (req, res) => {
   const cpfLimpo = validarTokenSeguro(req.params.token);
@@ -347,7 +447,7 @@ app.get('/validar/:token', (req, res) => {
 });
 
 // ==========================================
-// 4. APIS INTERNAS E AUTENTICAÇÃO
+// 4. ENDPOINTS DA API
 // ==========================================
 app.post('/api/login', (req, res) => {
   const { email, senha } = req.body;
@@ -376,13 +476,20 @@ app.post('/api/membros', async (req, res) => {
     cargaHoraria: data.cargaHoraria ? `${data.cargaHoraria}h` : 'Não informada',
     codigo,
     fotoBase64: data.fotoBase64 || null,
-    dataEmissao: new Date().toLocaleDateString('pt-BR')
+    dataEmissao: new Date().toLocaleDateString('pt-BR'),
+    tokenSeguro
   };
 
   membrosDB.set(cpfLimpo, membro);
 
   const qrCode = await QRCode.toDataURL(urlValidacao, { errorCorrectionLevel: 'H' });
   res.json({ success: true, membro, qrCode });
+});
+
+// Listar todos os membros para a tabela interna
+app.get('/api/membros', (req, res) => {
+  const lista = Array.from(membrosDB.values());
+  res.json(lista);
 });
 
 app.get('/api/filiados/buscar', (req, res) => {
