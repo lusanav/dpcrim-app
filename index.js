@@ -60,7 +60,7 @@ function validarTokenSeguro(tokenHex) {
   }
 }
 
-// 1. TELA PRINCIPAL
+// 1. ROUTE DA PÁGINA INICIAL
 app.get('/', (req, res) => {
   res.send('<!DOCTYPE html>' +
 '<html lang="pt-BR">' +
@@ -87,7 +87,7 @@ app.get('/', (req, res) => {
 '          <label class="block text-xs font-bold uppercase text-slate-700 mb-1">Senha de Segurança</label>' +
 '          <input type="password" id="senha" value="admin" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">' +
 '        </div>' +
-'        <button type="button" onclick="fazerLogin()" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3.5 rounded-xl text-sm shadow-md transition uppercase">ENTRAR NO PAINEL</button>' +
+'        <button type="button" id="btnEntrar" onclick="fazerLogin()" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3.5 rounded-xl text-sm shadow-md transition uppercase">ENTRAR NO PAINEL</button>' +
 '      </div>' +
 '      <div class="mt-6 border-t pt-4 text-center">' +
 '        <a href="/filiados" class="text-xs text-slate-600 hover:text-red-700 font-bold underline">🔍 Ir para a Consulta Pública de Filiados</a>' +
@@ -339,7 +339,7 @@ app.get('/', (req, res) => {
 '      janela.document.write(' +
 '        "<html><head><title>Credencial DPCRIM - " + ultimoMembroCadastrado.nome + "</title>" +' +
 '        "<style>body { font-family: sans-serif; padding: 20px; text-align: center; } .card { width: 350px; border: 2px solid #0f172a; border-radius: 12px; padding: 16px; margin: 0 auto; text-align: left; background: #0f172a; color: white; } .badge { background: #b91c1c; color: white; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; display: inline-block; } .foto { width: 70px; height: 90px; object-fit: cover; border-radius: 6px; border: 1px solid #334155; } .flex { display: flex; gap: 12px; align-items: center; margin-top: 10px; } .qr { width: 70px; height: 70px; background: white; padding: 2px; border-radius: 6px; } .footer { margin-top: 12px; border-top: 1px solid #334155; padding-top: 8px; font-size: 9px; color: #94a3b8; display: flex; justify-between; align-items: center; }</style></head><body>" +' +
-'        "<div class=\\"card\\"><div class=\\"badge\\">DPCRIM • Carteira Oficial</div><div class=\\"flex\\">" + fotoHtml + "<div><h3 style=\\"margin:0; font-size:14px;\\">" + ultimoMembroCadastrado.nome + "3</h3><p style=\\"margin:2px 0; font-size:11px; color:#cbd5e1;\\">INSCRIÇÃO: " + ultimoMembroCadastrado.inscricao + "</p><p style=\\"margin:2px 0; font-size:11px; color:#cbd5e1;\\">CPF: " + ultimoMembroCadastrado.cpfMascarado + "</p><p style=\\"margin:2px 0; font-size:11px; color:#fca5a5; font-weight:bold;\\">" + ultimoMembroCadastrado.curso + "</p></div></div><div class=\\"footer\\"><div><p style=\\"margin:0;\\">REGISTRO: " + ultimoMembroCadastrado.codigo + "</p><p style=\\"margin:0;\\">EMISSÃO: " + ultimoMembroCadastrado.dataEmissao + "</p></div><img src=\\"" + ultimoMembroCadastrado.qrCode + "\\" class=\\"qr\\"></div></div>" +' +
+'        "<div class=\\"card\\"><div class=\\"badge\\">DPCRIM • Carteira Oficial</div><div class=\\"flex\\">" + fotoHtml + "<div><h3 style=\\"margin:0; font-size:14px;\\">" + ultimoMembroCadastrado.nome + "</h3><p style=\\"margin:2px 0; font-size:11px; color:#cbd5e1;\\">INSCRIÇÃO: " + ultimoMembroCadastrado.inscricao + "</p><p style=\\"margin:2px 0; font-size:11px; color:#cbd5e1;\\">CPF: " + ultimoMembroCadastrado.cpfMascarado + "</p><p style=\\"margin:2px 0; font-size:11px; color:#fca5a5; font-weight:bold;\\">" + ultimoMembroCadastrado.curso + "</p></div></div><div class=\\"footer\\"><div><p style=\\"margin:0;\\">REGISTRO: " + ultimoMembroCadastrado.codigo + "</p><p style=\\"margin:0;\\">EMISSÃO: " + ultimoMembroCadastrado.dataEmissao + "</p></div><img src=\\"" + ultimoMembroCadastrado.qrCode + "\\" class=\\"qr\\"></div></div>" +' +
 '        "<script>window.print();</script></body></html>"' +
 '      );' +
 '    }' +
