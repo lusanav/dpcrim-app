@@ -33,22 +33,25 @@ registrarLog('SISTEMA', 'Servidor Iniciado', 'Aplicações DPCRIM operacionais')
 function mascararCPF(cpf) {
   const limpo = (cpf || '').replace(/\D/g, '');
   if (limpo.length !== 11) return '***.***.***-**';
-  return `${limpo.substring(0, 3)}.***.***-${limpo.substring(9)}`;
+  return limpo.substring(0, 3) + '.***.***-' + limpo.substring(9);
 }
 
 function gerarTokenSeguro(cpf) {
   const cpfLimpo = (cpf || '').replace(/\D/g, '');
   const timestamp = Date.now();
-  const payload = `${cpfLimpo}:${timestamp}`;
+  const payload = cpfLimpo + ':' + timestamp;
   const hmac = crypto.createHmac('sha256', CHAVE_SECRETA).update(payload).digest('hex');
-  return Buffer.from(`${payload}:${hmac}`).toString('hex');
+  return Buffer.from(payload + ':' + hmac).toString('hex');
 }
 
 function validarTokenSeguro(tokenHex) {
   try {
     const decodificado = Buffer.from(tokenHex, 'hex').toString('utf8');
-    const [cpfLimpo, timestamp, hmacRecebido] = decodificado.split(':');
-    const payload = `${cpfLimpo}:${timestamp}`;
+    const partes = decodificado.split(':');
+    const cpfLimpo = partes[0];
+    const timestamp = partes[1];
+    const hmacRecebido = partes[2];
+    const payload = cpfLimpo + ':' + timestamp;
     const hmacEsperado = crypto.createHmac('sha256', CHAVE_SECRETA).update(payload).digest('hex');
     if (hmacRecebido !== hmacEsperado) return null;
     return cpfLimpo;
@@ -57,9 +60,9 @@ function validarTokenSeguro(tokenHex) {
   }
 }
 
-// ROUTE DA PÁGINA INICIAL
+// 1. ROUTE DA PÁGINA INICIAL
 app.get('/', (req, res) => {
-  const html = `<!DOCTYPE html>
+  res.send(`<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -288,10 +291,10 @@ app.get('/', (req, res) => {
     }
 
     function mudarAba(aba) {
-      document.getElementById('abaCadastro').classList.toggle('hidden', aba !== 'cad');
-      document.getElementById('abaLista').classList.toggle('hidden', aba !== 'list');
-      document.getElementById('abaAcessos').classList.toggle('hidden', aba !== 'acc');
-      document.getElementById('abaLogs').classList.toggle('hidden', aba !== 'logs');
+      document.getElementById('abaCadastro').className = (aba === 'cad' ? '' : 'hidden');
+      document.getElementById('abaLista').className = (aba === 'list' ? '' : 'hidden');
+      document.getElementById('abaAcessos').className = (aba === 'acc' ? '' : 'hidden');
+      document.getElementById('abaLogs').className = (aba === 'logs' ? '' : 'hidden');
 
       document.getElementById('tabCadBtn').className = aba === 'cad' ? 'py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-900 text-white' : 'py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600';
       document.getElementById('tabListBtn').className = aba === 'list' ? 'py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-900 text-white' : 'py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600';
@@ -322,8 +325,8 @@ app.get('/', (req, res) => {
         if (data.success) {
           usuarioAtualEmail = email;
           document.getElementById('usrLogado').innerText = 'Operador: ' + email;
-          document.getElementById('telaLogin').classList.add('hidden');
-          document.getElementById('painelAdmin').classList.remove('hidden');
+          document.getElementById('telaLogin').className = 'hidden';
+          document.getElementById('painelAdmin').className = 'w-full max-w-4xl bg-white p-6 rounded-2xl shadow-xl border border-slate-200 my-4';
         } else {
           alert('Acesso negado: E-mail ou senha incorretos.');
         }
@@ -380,7 +383,7 @@ app.get('/', (req, res) => {
               '<img src="' + data.qrCode + '" class="w-12 h-12 bg-white p-0.5 rounded">' +
             '</div>';
 
-          document.getElementById('resCadastro').classList.remove('hidden');
+          document.getElementById('resCadastro').className = 'mt-6 border-t pt-4 text-center space-y-4';
           fotoBase64 = '';
           alert('✅ Membro cadastrado com sucesso!');
         }
@@ -464,33 +467,39 @@ app.get('/', (req, res) => {
 
     function renderizarTabela(dados) {
       var tbody = document.getElementById('tabelaMembros');
-      tbody.innerHTML = dados.map(function(m) {
+      var html = '';
+      for (var i = 0; i < dados.length; i++) {
+        var m = dados[i];
         var foto = m.fotoBase64 || 'https://via.placeholder.com/40?text=FOTO';
-        return '<tr class="hover:bg-slate-50 transition">' +
+        html += '<tr class="hover:bg-slate-50 transition">' +
           '<td class="p-2.5"><img src="' + foto + '" class="w-8 h-10 object-cover rounded border"></td>' +
           '<td class="p-2.5 font-bold text-slate-900">' + m.nome + '</td>' +
           '<td class="p-2.5 font-semibold text-slate-700">' + m.inscricao + '</td>' +
           '<td class="p-2.5 font-mono text-slate-600">' + m.cpfMascarado + '</td>' +
           '<td class="p-2.5 text-slate-700">' + m.curso + '</td>' +
           '<td class="p-2.5 text-center">' +
-            '<button onclick="window.open(\'/validar/\' + \'' + m.tokenSeguro + '\', \'_blank\')" class="bg-slate-900 text-white text-[10px] font-bold px-2.5 py-1 rounded">🔍 Ver Registro</button>' +
+            '<button onclick="window.open(\'/validar/' + m.tokenSeguro + '\', \'_blank\')" class="bg-slate-900 text-white text-[10px] font-bold px-2.5 py-1 rounded">🔍 Ver Registro</button>' +
           '</td>' +
         '</tr>';
-      }).join('');
+      }
+      tbody.innerHTML = html;
     }
 
     function carregarUsuarios() {
       fetch('/api/usuarios')
         .then(function(res) { return res.json(); })
         .then(function(dados) {
-          document.getElementById('tabelaUsuarios').innerHTML = dados.map(function(u) {
-            return '<tr class="hover:bg-slate-50">' +
+          var html = '';
+          for (var i = 0; i < dados.length; i++) {
+            var u = dados[i];
+            html += '<tr class="hover:bg-slate-50">' +
               '<td class="p-2.5 font-bold">' + u.nome + '</td>' +
               '<td class="p-2.5 font-mono">' + u.email + '</td>' +
               '<td class="p-2.5"><span class="bg-red-100 text-red-800 font-bold text-[10px] px-2 py-0.5 rounded">' + u.nivel + '</span></td>' +
               '<td class="p-2.5 text-slate-500">' + u.dataCriacao + '</td>' +
             '</tr>';
-          }).join('');
+          }
+          document.getElementById('tabelaUsuarios').innerHTML = html;
         });
     }
 
@@ -498,35 +507,39 @@ app.get('/', (req, res) => {
       fetch('/api/logs')
         .then(function(res) { return res.json(); })
         .then(function(dados) {
-          document.getElementById('tabelaLogs').innerHTML = dados.map(function(l) {
-            return '<tr class="hover:bg-slate-50">' +
+          var html = '';
+          for (var i = 0; i < dados.length; i++) {
+            var l = dados[i];
+            html += '<tr class="hover:bg-slate-50">' +
               '<td class="p-2.5 font-mono text-[11px] text-slate-500">' + l.dataHora + '</td>' +
               '<td class="p-2.5 font-bold text-slate-800">' + l.usuario + '</td>' +
               '<td class="p-2.5 font-bold text-red-700">' + l.acao + '</td>' +
               '<td class="p-2.5 text-slate-600">' + l.detalhe + '</td>' +
             '</tr>';
-          }).join('');
+          }
+          document.getElementById('tabelaLogs').innerHTML = html;
         });
     }
 
     function filtrarLista() {
       var termo = document.getElementById('filtroLista').value.toLowerCase();
-      var filtrados = listaMembrosCache.filter(function(m) {
-        return m.nome.toLowerCase().indexOf(termo) !== -1 || 
-               m.inscricao.toLowerCase().indexOf(termo) !== -1 || 
-               m.cpfMascarado.indexOf(termo) !== -1;
-      });
+      var filtrados = [];
+      for (var i = 0; i < listaMembrosCache.length; i++) {
+        var m = listaMembrosCache[i];
+        if (m.nome.toLowerCase().indexOf(termo) !== -1 || m.inscricao.toLowerCase().indexOf(termo) !== -1 || m.cpfMascarado.indexOf(termo) !== -1) {
+          filtrados.push(m);
+        }
+      }
       renderizarTabela(filtrados);
     }
   </script>
 </body>
-</html>`;
-  res.send(html);
+</html>`);
 });
 
-// ROUTE CONSULTA PÚBLICA
+// 2. ROUTE CONSULTA PÚBLICA
 app.get('/filiados', (req, res) => {
-  const html = `<!DOCTYPE html>
+  res.send(`<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -575,7 +588,7 @@ app.get('/filiados', (req, res) => {
         .then(function(res) { return res.json(); })
         .then(function(data) {
           var container = document.getElementById('resultadoBusca');
-          container.classList.remove('hidden');
+          container.className = 'text-left border-t pt-4 space-y-3';
 
           if (data.encontrado) {
             var fotoHtml = data.membro.fotoBase64 ? '<img src="' + data.membro.fotoBase64 + '" class="w-20 h-24 mx-auto rounded-lg object-cover border my-2">' : '';
@@ -603,11 +616,10 @@ app.get('/filiados', (req, res) => {
     }
   </script>
 </body>
-</html>`;
-  res.send(html);
+</html>`);
 });
 
-// ROUTE VALIDAÇÃO QR CODE
+// 3. ROUTE VALIDAÇÃO QR CODE
 app.get('/validar/:token', (req, res) => {
   const cpfLimpo = validarTokenSeguro(req.params.token);
   const membro = cpfLimpo ? membrosDB.get(cpfLimpo) : null;
@@ -621,9 +633,9 @@ app.get('/validar/:token', (req, res) => {
     `);
   }
 
-  const fotoTag = membro.fotoBase64 ? `<img src="${membro.fotoBase64}" class="w-24 h-28 mx-auto rounded-lg object-cover border shadow-sm mb-4">` : '';
+  const fotoTag = membro.fotoBase64 ? '<img src="' + membro.fotoBase64 + '" class="w-24 h-28 mx-auto rounded-lg object-cover border shadow-sm mb-4">' : '';
 
-  const html = `<!DOCTYPE html>
+  res.send(`<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -639,7 +651,7 @@ app.get('/validar/:token', (req, res) => {
       </div>
       <h2 class="text-slate-900 font-extrabold text-xl">DPCRIM</h2>
       <p class="text-[11px] text-slate-500 mb-4">Departamento de Pesquisas e Perícias Criminológicas</p>
-      ${fotoTag}
+      ` + fotoTag + `
       <div class="text-left space-y-2 text-xs border-t border-b py-4">
         <p><strong>NOME DO PERITO:</strong> ${membro.nome}</p>
         <p><strong>INSCRIÇÃO:</strong> ${membro.inscricao}</p>
@@ -656,8 +668,7 @@ app.get('/validar/:token', (req, res) => {
     Desenvolvido por <strong class="text-slate-800">Lusana Verissimo</strong>
   </footer>
 </body>
-</html>`;
-  res.send(html);
+</html>`);
 });
 
 // ENDPOINTS DA API
@@ -676,12 +687,12 @@ app.post('/api/login', (req, res) => {
 app.post('/api/membros', (req, res) => {
   const data = req.body;
   const cpfLimpo = (data.cpf || '').replace(/\D/g, '');
-  const codigo = `DPCRIM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const codigo = 'DPCRIM-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000);
   const tokenSeguro = gerarTokenSeguro(cpfLimpo);
 
   const host = req.get('host');
   const protocol = req.protocol;
-  const urlValidacao = `${protocol}://${host}/validar/${tokenSeguro}`;
+  const urlValidacao = protocol + '://' + host + '/validar/' + tokenSeguro;
 
   const membro = {
     nome: data.nome,
@@ -689,7 +700,7 @@ app.post('/api/membros', (req, res) => {
     cpfMascarado: mascararCPF(data.cpf),
     rg: data.rg || 'Não informado',
     curso: data.curso,
-    cargaHoraria: data.cargaHoraria ? `${data.cargaHoraria}h` : 'Não informada',
+    cargaHoraria: data.cargaHoraria ? data.cargaHoraria + 'h' : 'Não informada',
     codigo,
     fotoBase64: data.fotoBase64 || null,
     dataEmissao: new Date().toLocaleDateString('pt-BR'),
@@ -697,9 +708,9 @@ app.post('/api/membros', (req, res) => {
   };
 
   membrosDB.set(cpfLimpo, membro);
-  registrarLog(data.operador || 'ADMIN', 'Membro Cadastrado', `Nome: ${data.nome} | CPF: ${membro.cpfMascarado}`);
+  registrarLog(data.operador || 'ADMIN', 'Membro Cadastrado', 'Nome: ' + data.nome + ' | CPF: ' + membro.cpfMascarado);
 
-  const qrCodeApi = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(urlValidacao)}`;
+  const qrCodeApi = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(urlValidacao);
   res.json({ success: true, membro, qrCode: qrCodeApi });
 });
 
@@ -714,7 +725,7 @@ app.post('/api/usuarios', (req, res) => {
     nome, email, senha, nivel: nivel || 'OPERADOR', dataCriacao: new Date().toLocaleDateString('pt-BR')
   });
 
-  registrarLog(operador || 'ADMIN', 'Novo Usuário Criado', `Usuário: ${email}`);
+  registrarLog(operador || 'ADMIN', 'Novo Usuário Criado', 'Usuário: ' + email);
   res.json({ success: true });
 });
 
