@@ -7,18 +7,13 @@ const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Servir arquivos estáticos do frontend
 app.use(express.static(path.join(__dirname, 'public')));
 
 const CHAVE_SECRETA = process.env.SECRET_KEY || 'DPCRIM_CHAVE_MESTRA_SEGURA_2026';
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://lusanaverissimo_db_user:SDFqWrmdmP8dOcht@cluster0.vaj9mqg.mongodb.net/dpcrim_db?retryWrites=true&w=true';
 
-let db;
-let membrosColl;
-let usuariosColl;
-let logsColl;
+let db, membrosColl, usuariosColl, logsColl;
 
-// Conectar ao Banco de Dados MongoDB Atlas
 async function conectarBanco() {
   try {
     const client = new MongoClient(MONGODB_URI);
@@ -29,7 +24,6 @@ async function conectarBanco() {
     usuariosColl = db.collection('usuarios');
     logsColl = db.collection('logs');
 
-    // Criar conta de Administrador Padrão se não existir
     const adminExiste = await usuariosColl.findOne({ email: 'admin@dpcrim.org' });
     if (!adminExiste) {
       await usuariosColl.insertOne({
@@ -41,9 +35,9 @@ async function conectarBanco() {
       });
     }
 
-    console.log('✅ Conectado com sucesso ao MongoDB Atlas (Banco de Dados Permanente)!');
+    console.log('✅ Banco de Dados MongoDB Conectado e Permanente!');
   } catch (err) {
-    console.error('❌ Erro de conexão com o MongoDB Atlas:', err);
+    console.error('❌ Erro no MongoDB:', err);
   }
 }
 conectarBanco();
@@ -58,9 +52,7 @@ async function registrarLog(usuario, acao, detalhe) {
       detalhe: detalhe || '',
       timestamp: new Date()
     });
-  } catch (e) {
-    console.error('Erro ao gravar log:', e);
-  }
+  } catch (e) {}
 }
 
 function mascararCPF(cpf) {
@@ -93,9 +85,6 @@ function validarTokenSeguro(tokenHex) {
   }
 }
 
-// ----------------- ROTAS DA API -----------------
-
-// Login Administrativo
 app.post('/api/login', async (req, res) => {
   const { email, senha } = req.body;
   try {
@@ -107,11 +96,10 @@ app.post('/api/login', async (req, res) => {
     await registrarLog(email || 'DESCONHECIDO', 'Tentativa de Login Falhou', 'Credenciais incorretas');
     res.status(401).json({ success: false });
   } catch (err) {
-    res.status(500).json({ success: false, error: 'Erro de banco de dados' });
+    res.status(500).json({ success: false });
   }
 });
 
-// Cadastrar Novo Membro
 app.post('/api/membros', async (req, res) => {
   const data = req.body;
   const cpfLimpo = (data.cpf || '').replace(/\D/g, '');
@@ -144,14 +132,13 @@ app.post('/api/membros', async (req, res) => {
     const qrCodeApi = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(urlValidacao)}`;
     res.json({ success: true, membro, qrCode: qrCodeApi });
   } catch (err) {
-    res.status(500).json({ success: false, error: 'Erro ao gravar membro no banco' });
+    res.status(500).json({ success: false });
   }
 });
 
-// Cadastrar Novo Usuário Administrativo
 app.post('/api/usuarios', async (req, res) => {
   const { nome, email, senha, nivel, operador } = req.body;
-  if (!nome || !email || !senha) return res.status(400).json({ success: false, error: 'Campos obrigatórios ausentes.' });
+  if (!nome || !email || !senha) return res.status(400).json({ success: false });
 
   try {
     await usuariosColl.updateOne(
@@ -159,15 +146,13 @@ app.post('/api/usuarios', async (req, res) => {
       { $set: { nome, email, senha, nivel: nivel || 'OPERADOR', dataCriacao: new Date().toLocaleDateString('pt-BR') } },
       { upsert: true }
     );
-
     await registrarLog(operador || 'ADMIN', 'Novo Usuário Criado', `Usuário: ${email}`);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ success: false, error: 'Erro ao criar usuário' });
+    res.status(500).json({ success: false });
   }
 });
 
-// Buscar Lista de Membros
 app.get('/api/membros', async (req, res) => {
   try {
     const lista = await membrosColl.find({}).toArray();
@@ -177,7 +162,6 @@ app.get('/api/membros', async (req, res) => {
   }
 });
 
-// Buscar Lista de Usuários
 app.get('/api/usuarios', async (req, res) => {
   try {
     const lista = await usuariosColl.find({}, { projection: { senha: 0 } }).toArray();
@@ -187,7 +171,6 @@ app.get('/api/usuarios', async (req, res) => {
   }
 });
 
-// Buscar Logs
 app.get('/api/logs', async (req, res) => {
   try {
     const lista = await logsColl.find({}).sort({ timestamp: -1 }).limit(100).toArray();
@@ -197,7 +180,6 @@ app.get('/api/logs', async (req, res) => {
   }
 });
 
-// Consulta Pública por CPF
 app.get('/api/filiados/buscar', async (req, res) => {
   const cpfLimpo = (req.query.cpf || '').replace(/\D/g, '');
   try {
@@ -209,7 +191,6 @@ app.get('/api/filiados/buscar', async (req, res) => {
   }
 });
 
-// Rota de Validação do QR Code
 app.get('/validar/:token', async (req, res) => {
   const cpfLimpo = validarTokenSeguro(req.params.token);
   const membro = cpfLimpo ? await membrosColl.findOne({ cpfLimpo }) : null;
@@ -256,7 +237,6 @@ app.get('/validar/:token', async (req, res) => {
   `);
 });
 
-// Redirecionamento padrão para a interface HTML
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
