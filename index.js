@@ -1,11 +1,13 @@
 const express = require('express');
 const crypto = require('crypto');
 const path = require('path');
-const { MongoClient, ObjectId } = require('mongodb');
+const { MongoClient } = require('mongodb');
 
 const app = express();
-app.use(express.json({ limit: '15mb' }));
-app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+// Aumenta o limite para imagens pesadas sem estourar o servidor
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -46,7 +48,7 @@ app.use(async (req, res, next) => {
     next();
   } catch (err) {
     console.error('Erro de conexão MongoDB:', err);
-    res.status(500).json({ success: false, error: 'Erro de conexão no banco de dados' });
+    res.status(500).json({ success: false, error: 'Erro ao conectar ao banco de dados' });
   }
 });
 
@@ -112,17 +114,17 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.post('/api/membros', async (req, res) => {
-  const data = req.body;
-  const cpfLimpo = (data.cpf || '').replace(/\D/g, '');
-  
-  if (!cpfLimpo || !data.nome || !data.inscricao || !data.curso) {
-    return res.status(400).json({ success: false, error: 'Preencha os campos obrigatórios.' });
-  }
-
-  const host = req.get('host');
-  const protocol = req.protocol;
-
   try {
+    const data = req.body;
+    const cpfLimpo = (data.cpf || '').replace(/\D/g, '');
+    
+    if (!cpfLimpo || !data.nome || !data.inscricao || !data.curso) {
+      return res.status(400).json({ success: false, error: 'Preencha os campos obrigatórios.' });
+    }
+
+    const host = req.get('host');
+    const protocol = req.protocol;
+
     const existente = await membrosColl.findOne({ cpfLimpo });
     const codigo = existente ? existente.codigo : `DPCRIM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const tokenSeguro = existente ? existente.tokenSeguro : gerarTokenSeguro(cpfLimpo);
@@ -148,13 +150,13 @@ app.post('/api/membros', async (req, res) => {
     await registrarLog(data.operador || 'ADMIN', existente ? 'Membro Atualizado' : 'Membro Cadastrado', `Nome: ${data.nome} | CPF: ${membro.cpfMascarado}`);
 
     const qrCodeApi = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(urlValidacao)}`;
-    res.json({ success: true, membro, qrCode: qrCodeApi });
+    return res.json({ success: true, membro, qrCode: qrCodeApi });
   } catch (err) {
-    res.status(500).json({ success: false, error: 'Erro ao salvar membro no banco.' });
+    console.error("Erro ao salvar membro:", err);
+    return res.status(500).json({ success: false, error: 'Erro interno ao salvar no banco.' });
   }
 });
 
-// Alterar Estado do Membro (Ativar / Desativar)
 app.patch('/api/membros/status', async (req, res) => {
   const { cpfLimpo, ativo, operador } = req.body;
   try {
@@ -223,7 +225,6 @@ app.get('/api/filiados/buscar', async (req, res) => {
   }
 });
 
-// Validação de QR Code
 app.get('/validar/:token', async (req, res) => {
   const cpfLimpo = validarTokenSeguro(req.params.token);
   const membro = cpfLimpo ? await membrosColl.findOne({ cpfLimpo }) : null;
@@ -250,7 +251,7 @@ app.get('/validar/:token', async (req, res) => {
         <div class="max-w-sm w-full bg-white p-6 rounded-2xl shadow-xl border border-red-200 text-center space-y-4">
           <div class="bg-red-600 text-white font-bold p-3 rounded-xl text-xs uppercase">⚠️ CREDENCIAL SUSPENSA / INATIVA</div>
           <h2 class="text-slate-900 font-black text-xl">DPCRIM</h2>
-          <p class="text-xs text-slate-600">Este registo de filiado encontra-se suspenso no sistema oficial do DPCRIM.</p>
+          <p class="text-xs text-slate-600">Este registro de filiado encontra-se suspenso no sistema oficial do DPCRIM.</p>
           <div class="text-left text-xs bg-slate-50 p-3 rounded-lg border space-y-1">
             <p><strong>NOME:</strong> ${membro.nome}</p>
             <p><strong>REGISTRO:</strong> ${membro.codigo}</p>
