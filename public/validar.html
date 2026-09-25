@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DPCRIM - Validação Oficial</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col justify-between p-4 font-sans text-slate-800">
+  <div class="my-auto flex flex-col items-center justify-center w-full">
+    <div id="cardValidacao" class="max-w-sm w-full bg-white p-6 rounded-2xl shadow-xl border border-slate-200 text-center">
+      <p class="text-xs text-slate-500">Validando token no servidor DPCRIM...</p>
+    </div>
+  </div>
+  <footer class="w-full text-center py-4 text-xs text-slate-500 border-t border-slate-200 mt-auto">
+    Desenvolvido por <strong class="text-slate-800">Lusana Verissimo</strong>
+  </footer>
+  <script>
+    var token = window.location.pathname.split('/').pop();
+    fetch('/api/validar-token/' + token)
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        var card = document.getElementById('cardValidacao');
+        if (data.valido) {
+          var m = data.membro;
+          var fotoHtml = m.fotoBase64 ? '<img src="' + m.fotoBase64 + '" class="w-24 h-28 mx-auto rounded-lg object-cover border shadow-sm mb-4">' : '';
+          card.innerHTML = 
+            '<div class="bg-emerald-100 border border-emerald-300 text-emerald-800 p-3 rounded-xl font-bold text-xs mb-4">✅ AUTENTICIDADE VERIFICADA E VÁLIDA</div>' +
+            '<h2 class="text-slate-900 font-extrabold text-xl">DPCRIM</h2>' +
+            '<p class="text-[11px] text-slate-500 mb-4">Departamento de Pesquisas e Perícias Criminológicas</p>' +
+            fotoHtml +
+            '<div class="text-left space-y-2 text-xs border-t border-b py-4">' +
+              '<p><strong>NOME DO PERITO:</strong> ' + m.nome + '</p>' +
+              '<p><strong>INSCRIÇÃO:</strong> ' + m.inscricao + '</p>' +
+              '<p><strong>DOCUMENTO:</strong> ' + m.cpfMascarado + '</p>' +
+              '<p><strong>ESPECIALIDADE:</strong> ' + m.curso + '</p>' +
+              '<p><strong>REGISTRO OFICIAL:</strong> ' + m.codigo + '</p>' +
+              '<p><strong>DATA DE EMISSÃO:</strong> ' + m.dataEmissao + '</p>' +
+            '</div>' +
+            '<p class="text-[10px] text-slate-400 mt-4">Documento assinado digitalmente via protocolo HMAC-SHA256.</p>';
+        } else {
+          card.innerHTML = 
+            '<h1 class="text-red-600 font-bold text-lg mb-2">❌ CREDENCIAL INVÁLIDA OU ADULTERADA</h1>' +
+            '<p class="text-red-800 text-xs">A assinatura digital deste QR Code falhou na verificação do DPCRIM.</p>';
+        }
+      });
+  </script>
+</body>
+</html>
