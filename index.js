@@ -46,7 +46,7 @@ app.use(async (req, res, next) => {
     next();
   } catch (err) {
     console.error('Erro de conexão MongoDB:', err);
-    res.status(500).json({ success: false, error: 'Erro de conexão no banco de dados' });
+    res.status(500).json({ success: false, error: 'Erro de conexão com o banco de dados' });
   }
 });
 
@@ -94,7 +94,8 @@ function validarTokenSeguro(tokenHex) {
   }
 }
 
-// ENDPOINTS DA API
+// ----------------- ROTAS DA API -----------------
+
 app.post('/api/login', async (req, res) => {
   const { email, senha } = req.body;
   try {
@@ -104,9 +105,9 @@ app.post('/api/login', async (req, res) => {
       return res.json({ success: true });
     }
     await registrarLog(email || 'DESCONHECIDO', 'Tentativa de Login Falhou', 'Credenciais incorretas');
-    res.status(401).json({ success: false });
+    res.status(401).json({ success: false, error: 'E-mail ou senha incorretos' });
   } catch (err) {
-    res.status(500).json({ success: false });
+    res.status(500).json({ success: false, error: 'Erro no servidor' });
   }
 });
 
@@ -142,13 +143,15 @@ app.post('/api/membros', async (req, res) => {
     const qrCodeApi = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(urlValidacao)}`;
     res.json({ success: true, membro, qrCode: qrCodeApi });
   } catch (err) {
-    res.status(500).json({ success: false });
+    res.status(500).json({ success: false, error: 'Erro ao salvar membro' });
   }
 });
 
 app.post('/api/usuarios', async (req, res) => {
   const { nome, email, senha, nivel, operador } = req.body;
-  if (!nome || !email || !senha) return res.status(400).json({ success: false });
+  if (!nome || !email || !senha) {
+    return res.status(400).json({ success: false, error: 'Preencha todos os campos do usuário.' });
+  }
 
   try {
     await usuariosColl.updateOne(
@@ -159,7 +162,8 @@ app.post('/api/usuarios', async (req, res) => {
     await registrarLog(operador || 'ADMIN', 'Novo Usuário Criado', `Usuário: ${email}`);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ success: false });
+    console.error('Erro ao cadastrar usuario:', err);
+    res.status(500).json({ success: false, error: err.message || 'Erro interno ao salvar no banco' });
   }
 });
 
