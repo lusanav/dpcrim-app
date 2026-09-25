@@ -186,7 +186,7 @@
             <table class="w-full text-xs text-left border-collapse">
               <thead>
                 <tr class="bg-slate-900 text-white uppercase text-[10px]">
-                  <th class="p-2.5">Nome</th><th class="p-2.5">E-mail</th><th class="p-2.5">Nível</th><th class="p-2.5">Data Cadastro</th>
+                  <th class="p-2.5">Nome</th><th class="p-2.5">E-mail</th><th class="p-2.5">Nível</th><th class="p-2.5">Data Cadastro</th><th class="p-2.5 text-center">Ações</th>
                 </tr>
               </thead>
               <tbody id="tabelaUsuarios" class="divide-y divide-slate-200"></tbody>
@@ -329,8 +329,6 @@
     async function salvarMembro() {
       const nome = document.getElementById("cadNome").value.trim();
       const inscricao = document.getElementById("cadInscricao").value.trim();
-      
-      // Captura o CPF do campo ou da variável caso esteja desativado durante a edição
       let cpf = cpfEmEdicao || document.getElementById("cadCPF").value.trim();
       const curso = document.getElementById("cadCurso").value.trim();
 
@@ -462,6 +460,31 @@
         }
       } catch (e) {
         alert("Erro na conexão ao cadastrar usuário.");
+      }
+    }
+
+    async function alterarSenhaUsuario(email) {
+      const novaSenha = prompt(`Digite a nova senha para o usuário ${email}:`);
+      if (!novaSenha || !novaSenha.trim()) {
+        alert("Alteração cancelada ou senha vazia.");
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/usuarios/senha", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, novaSenha: novaSenha.trim(), operador: usuarioAtualEmail })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          alert(`✅ Senha do usuário ${email} alterada com sucesso!`);
+        } else {
+          alert(data.error || "Erro ao alterar a senha.");
+        }
+      } catch (e) {
+        alert("Erro na requisição para alterar senha.");
       }
     }
 
@@ -616,6 +639,9 @@
             <td class="p-2.5 font-mono">${u.email}</td>
             <td class="p-2.5"><span class="bg-red-100 text-red-800 font-bold text-[10px] px-2 py-0.5 rounded">${u.nivel}</span></td>
             <td class="p-2.5 text-slate-500">${u.dataCriacao}</td>
+            <td class="p-2.5 text-center">
+              <button onclick="alterarSenhaUsuario('${u.email}')" class="bg-slate-800 hover:bg-slate-900 text-white font-bold text-[10px] px-2.5 py-1 rounded shadow">🔑 Alterar Senha</button>
+            </td>
           </tr>
         `).join('');
       } catch (e) {}
