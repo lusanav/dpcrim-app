@@ -1,13 +1,12 @@
 {
   "name": "dpcrim-app",
   "version": "1.0.0",
-  "description": "Sistema de Gestao e Consulta DPCRIM",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "mongodb": "^6.3.0"
+    "mongoose": "^8.0.0"
   }
 }
