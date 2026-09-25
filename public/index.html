@@ -222,6 +222,7 @@
     let usuarioAtualEmail = "";
     let listaMembrosCache = [];
     let ultimoMembroCadastrado = null;
+    let cpfEmEdicao = null;
 
     const cadFotoEl = document.getElementById("cadFoto");
     if (cadFotoEl) {
@@ -328,10 +329,15 @@
     async function salvarMembro() {
       const nome = document.getElementById("cadNome").value.trim();
       const inscricao = document.getElementById("cadInscricao").value.trim();
-      const cpf = document.getElementById("cadCPF").value.trim();
+      
+      // Captura o CPF do campo ou da variável caso esteja desativado durante a edição
+      let cpf = cpfEmEdicao || document.getElementById("cadCPF").value.trim();
       const curso = document.getElementById("cadCurso").value.trim();
 
-      if (!nome || !inscricao || !cpf || !curso) { alert("Preencha os campos obrigatórios (*)."); return; }
+      if (!nome || !inscricao || !cpf || !curso) { 
+        alert("Preencha os campos obrigatórios (*)."); 
+        return; 
+      }
 
       try {
         const res = await fetch("/api/membros", {
@@ -369,12 +375,12 @@
 
           document.getElementById("resCadastro").classList.remove("hidden");
           cancelarEdicao();
-          alert("✅ Cadastro efetuado / atualizado com sucesso!");
+          alert("✅ Registro alterado / salvo com sucesso!");
         } else {
-          alert(data.error || "Erro ao salvar membro.");
+          alert(data.error || "Erro ao salvar membro no banco.");
         }
       } catch (err) {
-        alert("Erro na conexão ao salvar o membro.");
+        alert("Erro de conexão ao salvar membro.");
       }
     }
 
@@ -390,12 +396,14 @@
       document.getElementById("cadCurso").value = m.curso;
       document.getElementById("cadCarga").value = (m.cargaHoraria || '').replace('h', '');
 
+      cpfEmEdicao = m.cpfLimpo;
       document.getElementById("cadCPF").disabled = true;
       document.getElementById("tituloFormCadastro").innerText = "✏️ EDITANDO CADASTRO DO FILIADO";
       document.getElementById("btnCancelarEdit").classList.remove("hidden");
     }
 
     function cancelarEdicao() {
+      cpfEmEdicao = null;
       document.getElementById("cadNome").value = "";
       document.getElementById("cadInscricao").value = "";
       document.getElementById("cadCPF").value = "";
