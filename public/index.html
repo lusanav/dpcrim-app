@@ -75,7 +75,7 @@
 
       <!-- ABAS -->
       <div class="flex flex-wrap border-b border-slate-200 mb-6 gap-2">
-        <button id="tabCadBtn" onclick="mudarAba('cad')" class="py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-900 text-white">➕ Cadastrar Membro</button>
+        <button id="tabCadBtn" onclick="mudarAba('cad')" class="py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-900 text-white">➕ Cadastrar / Editar Membro</button>
         <button id="tabListBtn" onclick="mudarAba('list')" class="py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600">📋 Lista de Membros</button>
         <button id="tabAccBtn" onclick="mudarAba('acc')" class="py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600">👤 Cadastrar Acessos</button>
         <button id="tabLogsBtn" onclick="mudarAba('logs')" class="py-2 px-3 font-bold text-xs uppercase rounded-t-lg bg-slate-100 text-slate-600">📜 Logs de Acesso</button>
@@ -85,7 +85,7 @@
       <div id="abaCadastro">
         <div class="space-y-6">
           <div class="border-b pb-4">
-            <h3 class="text-xs font-bold uppercase text-slate-800 mb-3">1. Dados do Membro Filiado</h3>
+            <h3 id="tituloFormCadastro" class="text-xs font-bold uppercase text-slate-800 mb-3">1. Dados do Membro Filiado</h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div class="sm:col-span-2">
                 <label class="block text-xs font-bold text-slate-700 mb-1">NOME COMPLETO *</label>
@@ -124,7 +124,10 @@
             </div>
           </div>
 
-          <button type="button" onclick="salvarMembro()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl text-sm uppercase shadow">CADASTRAR E EMITIR CREDENCIAL</button>
+          <div class="flex gap-2">
+            <button type="button" onclick="salvarMembro()" class="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl text-sm uppercase shadow">CADASTRAR E EMITIR CREDENCIAL</button>
+            <button type="button" id="btnCancelarEdit" onclick="cancelarEdicao()" class="hidden bg-slate-300 hover:bg-slate-400 text-slate-800 font-bold py-3.5 px-4 rounded-xl text-xs uppercase">Cancelar</button>
+          </div>
         </div>
 
         <div id="resCadastro" class="mt-6 hidden border-t pt-4 text-center space-y-4">
@@ -141,7 +144,7 @@
           <table class="w-full text-xs text-left border-collapse">
             <thead>
               <tr class="bg-slate-900 text-white uppercase text-[10px]">
-                <th class="p-3">Foto</th><th class="p-3">Nome Completo</th><th class="p-3">Inscrição</th><th class="p-3">CPF</th><th class="p-3">Curso</th><th class="p-3 text-center">Ações</th>
+                <th class="p-3">Foto</th><th class="p-3">Nome Completo</th><th class="p-3">Inscrição</th><th class="p-3">CPF</th><th class="p-3">Curso</th><th class="p-3 font-bold text-center">Status / Ações</th>
               </tr>
             </thead>
             <tbody id="tabelaMembros" class="divide-y divide-slate-200"></tbody>
@@ -296,6 +299,11 @@
         container.classList.remove("hidden");
 
         if (data.encontrado) {
+          if (data.membro.ativo === false) {
+            container.innerHTML = `<div class="bg-red-100 border border-red-300 text-red-800 p-3 rounded-xl font-bold text-center text-xs">⚠️ CREDENCIAL SUSPENSA / INATIVA NO SISTEMA</div>`;
+            return;
+          }
+
           const fotoHtml = data.membro.fotoBase64 ? `<img src="${data.membro.fotoBase64}" class="w-20 h-24 mx-auto rounded-lg object-cover border my-2">` : '';
           container.innerHTML = `
             <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 p-3 rounded-xl font-bold text-center text-xs">✅ REGISTRO OFICIAL ENCONTRADO E VÁLIDO</div>
@@ -325,42 +333,100 @@
 
       if (!nome || !inscricao || !cpf || !curso) { alert("Preencha os campos obrigatórios (*)."); return; }
 
-      const res = await fetch("/api/membros", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nome, inscricao, cpf,
-          rg: document.getElementById("cadRG").value,
-          curso, cargaHoraria: document.getElementById("cadCarga").value,
-          fotoBase64, operador: usuarioAtualEmail
-        })
-      });
-      const data = await res.json();
+      try {
+        const res = await fetch("/api/membros", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nome, inscricao, cpf,
+            rg: document.getElementById("cadRG").value,
+            curso, cargaHoraria: document.getElementById("cadCarga").value,
+            fotoBase64, operador: usuarioAtualEmail
+          })
+        });
+        const data = await res.json();
 
-      if (data.success) {
-        ultimoMembroCadastrado = { ...data.membro, qrCode: data.qrCode };
-        const fotoHtml = data.membro.fotoBase64 ? `<img src="${data.membro.fotoBase64}" class="w-16 h-20 object-cover rounded border border-slate-700">` : '';
+        if (data.success) {
+          ultimoMembroCadastrado = { ...data.membro, qrCode: data.qrCode };
+          const fotoHtml = data.membro.fotoBase64 ? `<img src="${data.membro.fotoBase64}" class="w-16 h-20 object-cover rounded border border-slate-700">` : '';
 
-        document.getElementById("cardCredencial").innerHTML = `
-          <div class="bg-red-700 text-[10px] font-bold px-2 py-0.5 rounded w-max uppercase mb-2">DPCRIM • Credencial</div>
-          <div class="flex space-x-4 items-center">
-            ${fotoHtml}
-            <div class="text-xs space-y-1">
-              <p class="font-bold text-sm text-white">${data.membro.nome}</p>
-              <p class="text-slate-300">INSCRIÇÃO: ${data.membro.inscricao}</p>
-              <p class="text-slate-300">CPF: ${data.membro.cpfMascarado}</p>
-              <p class="text-red-300 font-semibold">${data.membro.curso}</p>
+          document.getElementById("cardCredencial").innerHTML = `
+            <div class="bg-red-700 text-[10px] font-bold px-2 py-0.5 rounded w-max uppercase mb-2">DPCRIM • Credencial Oficial</div>
+            <div class="flex space-x-4 items-center">
+              ${fotoHtml}
+              <div class="text-xs space-y-1">
+                <p class="font-bold text-sm text-white">${data.membro.nome}</p>
+                <p class="text-slate-300">INSCRIÇÃO: ${data.membro.inscricao}</p>
+                <p class="text-slate-300">CPF: ${data.membro.cpfMascarado}</p>
+                <p class="text-red-300 font-semibold">${data.membro.curso}</p>
+              </div>
             </div>
-          </div>
-          <div class="mt-3 pt-2 border-t border-slate-800 text-[10px] text-slate-400 flex justify-between items-center">
-            <span>REGISTRO: ${data.membro.codigo}</span>
-            <img src="${data.qrCode}" class="w-12 h-12 bg-white p-0.5 rounded">
-          </div>
-        `;
+            <div class="mt-3 pt-2 border-t border-slate-800 text-[10px] text-slate-400 flex justify-between items-center">
+              <span>REGISTRO: ${data.membro.codigo}</span>
+              <img src="${data.qrCode}" class="w-12 h-12 bg-white p-0.5 rounded">
+            </div>
+          `;
 
-        document.getElementById("resCadastro").classList.remove("hidden");
-        fotoBase64 = "";
-        alert("✅ Membro cadastrado com sucesso!");
+          document.getElementById("resCadastro").classList.remove("hidden");
+          cancelarEdicao();
+          alert("✅ Cadastro efetuado / atualizado com sucesso!");
+        } else {
+          alert(data.error || "Erro ao salvar membro.");
+        }
+      } catch (err) {
+        alert("Erro na conexão ao salvar o membro.");
+      }
+    }
+
+    function editarMembro(cpfLimpo) {
+      const m = listaMembrosCache.find(item => item.cpfLimpo === cpfLimpo);
+      if (!m) return;
+
+      mudarAba('cad');
+      document.getElementById("cadNome").value = m.nome;
+      document.getElementById("cadInscricao").value = m.inscricao;
+      document.getElementById("cadCPF").value = m.cpfLimpo;
+      document.getElementById("cadRG").value = m.rg || '';
+      document.getElementById("cadCurso").value = m.curso;
+      document.getElementById("cadCarga").value = (m.cargaHoraria || '').replace('h', '');
+
+      document.getElementById("cadCPF").disabled = true;
+      document.getElementById("tituloFormCadastro").innerText = "✏️ EDITANDO CADASTRO DO FILIADO";
+      document.getElementById("btnCancelarEdit").classList.remove("hidden");
+    }
+
+    function cancelarEdicao() {
+      document.getElementById("cadNome").value = "";
+      document.getElementById("cadInscricao").value = "";
+      document.getElementById("cadCPF").value = "";
+      document.getElementById("cadCPF").disabled = false;
+      document.getElementById("cadRG").value = "";
+      document.getElementById("cadCurso").value = "";
+      document.getElementById("cadCarga").value = "";
+      fotoBase64 = "";
+
+      document.getElementById("tituloFormCadastro").innerText = "1. Dados do Membro Filiado";
+      document.getElementById("btnCancelarEdit").classList.add("hidden");
+    }
+
+    async function alternarStatusMembro(cpfLimpo, statusAtual) {
+      const acao = statusAtual ? "desativar" : "reativar";
+      if (!confirm(`Deseja realmente ${acao} este registo?`)) return;
+
+      try {
+        const res = await fetch("/api/membros/status", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cpfLimpo, ativo: !statusAtual, operador: usuarioAtualEmail })
+        });
+        const data = await res.json();
+        if (data.success) {
+          carregarListaMembros();
+        } else {
+          alert("Erro ao alterar estado do membro.");
+        }
+      } catch (e) {
+        alert("Erro na requisição para alterar o estado.");
       }
     }
 
@@ -372,79 +438,194 @@
 
       if (!nome || !email || !senha) { alert("Preencha nome, e-mail e senha."); return; }
 
-      const res = await fetch("/api/usuarios", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome, email, senha, nivel, operador: usuarioAtualEmail })
-      });
-      const data = await res.json();
+      try {
+        const res = await fetch("/api/usuarios", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nome, email, senha, nivel, operador: usuarioAtualEmail })
+        });
+        const data = await res.json();
 
-      if (data.success) {
-        alert("✅ Novo usuário cadastrado!");
-        carregarUsuarios();
-      } else {
-        alert(data.error || "Erro ao cadastrar usuário.");
+        if (data.success) {
+          alert("✅ Novo usuário cadastrado!");
+          carregarUsuarios();
+        } else {
+          alert(data.error || "Erro ao cadastrar usuário.");
+        }
+      } catch (e) {
+        alert("Erro na conexão ao cadastrar usuário.");
       }
     }
 
     function imprimirPDF() {
-      if (!ultimoMembroCadastrado) return;
+      if (!ultimoMembroCadastrado) {
+        alert("Nenhum membro selecionado para impressão de credencial.");
+        return;
+      }
+      
       const janela = window.open("", "_blank");
-      const fotoHtml = ultimoMembroCadastrado.fotoBase64 ? `<img src="${ultimoMembroCadastrado.fotoBase64}" class="foto">` : '';
+      if (!janela) {
+        alert("Por favor, permita pop-ups no seu navegador para abrir e imprimir a credencial.");
+        return;
+      }
+
+      const fotoHtml = ultimoMembroCadastrado.fotoBase64 
+        ? `<img src="${ultimoMembroCadastrado.fotoBase64}" class="foto">` 
+        : '<div class="foto-placeholder">SEM FOTO</div>';
 
       janela.document.write(`
-        <html><head><title>Credencial DPCRIM - ${ultimoMembroCadastrado.nome}</title>
-        <style>body { font-family: sans-serif; padding: 20px; text-align: center; } .card { width: 350px; border: 2px solid #0f172a; border-radius: 12px; padding: 16px; margin: 0 auto; text-align: left; background: #0f172a; color: white; } .badge { background: #b91c1c; color: white; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; display: inline-block; } .foto { width: 70px; height: 90px; object-fit: cover; border-radius: 6px; border: 1px solid #334155; } .flex { display: flex; gap: 12px; align-items: center; margin-top: 10px; } .qr { width: 70px; height: 70px; background: white; padding: 2px; border-radius: 6px; } .footer { margin-top: 12px; border-top: 1px solid #334155; padding-top: 8px; font-size: 9px; color: #94a3b8; display: flex; justify-between; align-items: center; }</style></head><body>
-        <div class="card"><div class="badge">DPCRIM • Carteira Oficial</div><div class="flex">${fotoHtml}<div><h3 style="margin:0; font-size:14px;">${ultimoMembroCadastrado.nome}</h3><p style="margin:2px 0; font-size:11px; color:#cbd5e1;">INSCRIÇÃO: ${ultimoMembroCadastrado.inscricao}</p><p style="margin:2px 0; font-size:11px; color:#cbd5e1;">CPF: ${ultimoMembroCadastrado.cpfMascarado}</p><p style="margin:2px 0; font-size:11px; color:#fca5a5; font-weight:bold;">${ultimoMembroCadastrado.curso}</p></div></div><div class="footer"><div><p style="margin:0;">REGISTRO: ${ultimoMembroCadastrado.codigo}</p><p style="margin:0;">EMISSÃO: ${ultimoMembroCadastrado.dataEmissao}</p></div><img src="${ultimoMembroCadastrado.qrCode}" class="qr"></div></div>
-        <script>window.print();<\/script></body></html>
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Credencial DPCRIM - ${ultimoMembroCadastrado.nome}</title>
+          <style>
+            @page { size: A4 portrait; margin: 15mm; }
+            body { font-family: 'Segoe UI', Arial, sans-serif; background: #f8fafc; color: #0f172a; margin: 0; padding: 20px; }
+            .documento { max-width: 650px; margin: 0 auto; background: white; padding: 30px; border-radius: 16px; border: 1px solid #cbd5e1; }
+            .cabecalho { text-align: center; border-bottom: 3px solid #b91c1c; padding-bottom: 15px; margin-bottom: 25px; }
+            .logo { background: #b91c1c; color: white; font-weight: 900; font-size: 24px; padding: 8px 24px; border-radius: 8px; display: inline-block; }
+            .titulo-doc { font-size: 13px; font-weight: bold; text-transform: uppercase; color: #334155; margin-top: 10px; }
+            
+            .carteira { width: 380px; margin: 0 auto 30px auto; background: #0f172a; color: white; border-radius: 16px; padding: 20px; border: 2px solid #b91c1c; position: relative; }
+            .carteira-header { background: #b91c1c; color: white; font-size: 10px; font-weight: bold; padding: 4px 10px; border-radius: 6px; text-transform: uppercase; display: inline-block; margin-bottom: 15px; }
+            .carteira-body { display: flex; gap: 15px; align-items: center; }
+            .foto { width: 85px; height: 110px; object-fit: cover; border-radius: 8px; border: 2px solid #334155; }
+            .foto-placeholder { width: 85px; height: 110px; background: #1e293b; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #64748b; border: 1px dashed #475569; }
+            .dados-membro h3 { margin: 0 0 6px 0; font-size: 15px; color: #ffffff; font-weight: 800; }
+            .dados-membro p { margin: 3px 0; font-size: 11px; color: #cbd5e1; }
+            .dados-membro .curso { color: #fca5a5; font-weight: 700; margin-top: 6px; font-size: 12px; }
+            .carteira-footer { margin-top: 15px; border-top: 1px solid #334155; padding-top: 10px; display: flex; justify-content: space-between; align-items: center; }
+            .carteira-footer p { margin: 0; font-size: 10px; color: #94a3b8; }
+            .qr { width: 65px; height: 65px; background: white; padding: 3px; border-radius: 6px; }
+
+            .detalhes-tecnicos { font-size: 12px; border-top: 1px solid #e2e8f0; padding-top: 15px; margin-top: 20px; }
+            .grid-dados { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+            .campo { background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; }
+            .campo label { display: block; font-size: 9px; font-weight: bold; color: #64748b; text-transform: uppercase; }
+            .campo span { font-size: 12px; font-weight: bold; color: #0f172a; }
+
+            .rodape-impressao { margin-top: 30px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px dashed #cbd5e1; padding-top: 15px; }
+          </style>
+        </head>
+        <body>
+          <div class="documento">
+            <div class="cabecalho">
+              <div class="logo">DPCRIM</div>
+              <div class="titulo-doc">Departamento de Pesquisas e Perícias Criminológicas</div>
+              <p style="font-size:11px; color:#64748b; margin:4px 0 0 0;">CREDENCIAL E FICHA OFICIAL DE CADASTRO</p>
+            </div>
+
+            <div class="carteira">
+              <div class="carteira-header">DPCRIM • Carteira de Identificação Pericial</div>
+              <div class="carteira-body">
+                ${fotoHtml}
+                <div class="dados-membro">
+                  <h3>${ultimoMembroCadastrado.nome}</h3>
+                  <p><strong>INSCRIÇÃO:</strong> ${ultimoMembroCadastrado.inscricao}</p>
+                  <p><strong>DOCUMENTO:</strong> ${ultimoMembroCadastrado.cpfMascarado}</p>
+                  <p class="curso">${ultimoMembroCadastrado.curso}</p>
+                </div>
+              </div>
+              <div class="carteira-footer">
+                <div>
+                  <p><strong>REGISTRO:</strong> ${ultimoMembroCadastrado.codigo}</p>
+                  <p><strong>EMISSÃO:</strong> ${ultimoMembroCadastrado.dataEmissao}</p>
+                </div>
+                <img src="${ultimoMembroCadastrado.qrCode}" class="qr">
+              </div>
+            </div>
+
+            <div class="detalhes-tecnicos">
+              <h4 style="margin:0 0 10px 0; text-transform:uppercase; font-size:11px; color:#b91c1c;">Ficha de Identificação Cadastral</h4>
+              <div class="grid-dados">
+                <div class="campo"><label>Nome do Perito</label><span>${ultimoMembroCadastrado.nome}</span></div>
+                <div class="campo"><label>Número de Inscrição</label><span>${ultimoMembroCadastrado.inscricao}</span></div>
+                <div class="campo"><label>CPF</label><span>${ultimoMembroCadastrado.cpfMascarado}</span></div>
+                <div class="campo"><label>RG / Expedidor</label><span>${ultimoMembroCadastrado.rg || 'Não informado'}</span></div>
+                <div class="campo"><label>Especialização / Curso</label><span>${ultimoMembroCadastrado.curso}</span></div>
+                <div class="campo"><label>Carga Horária</label><span>${ultimoMembroCadastrado.cargaHoraria || 'Não informada'}</span></div>
+              </div>
+            </div>
+
+            <div class="rodape-impressao">
+              Documento autêntico gerado pelo Sistema Oficial DPCRIM em ${new Date().toLocaleDateString('pt-BR')}.
+            </div>
+          </div>
+          <script>
+            window.onload = function() { window.print(); };
+          <\/script>
+        </body>
+        </html>
       `);
     }
 
     async function carregarListaMembros() {
-      const res = await fetch("/api/membros");
-      listaMembrosCache = await res.json();
-      renderizarTabela(listaMembrosCache);
+      try {
+        const res = await fetch("/api/membros");
+        listaMembrosCache = await res.json();
+        renderizarTabela(listaMembrosCache);
+      } catch (e) {
+        console.error("Erro ao carregar lista de membros:", e);
+      }
     }
 
     function renderizarTabela(dados) {
       const tbody = document.getElementById("tabelaMembros");
+      if (!tbody) return;
+
       tbody.innerHTML = dados.map(m => {
         const foto = m.fotoBase64 || "https://via.placeholder.com/40?text=FOTO";
+        const ativo = m.ativo !== false;
+        const statusTag = ativo 
+          ? '<span class="bg-emerald-100 text-emerald-800 font-bold text-[10px] px-2 py-0.5 rounded">ATIVO</span>' 
+          : '<span class="bg-red-100 text-red-800 font-bold text-[10px] px-2 py-0.5 rounded">INATIVO</span>';
+
         return `<tr class="hover:bg-slate-50 transition">
           <td class="p-2.5"><img src="${foto}" class="w-8 h-10 object-cover rounded border"></td>
           <td class="p-2.5 font-bold text-slate-900">${m.nome}</td>
           <td class="p-2.5 font-semibold text-slate-700">${m.inscricao}</td>
           <td class="p-2.5 font-mono text-slate-600">${m.cpfMascarado}</td>
-          <td class="p-2.5 text-slate-700">${m.curso}</td>
-          <td class="p-2.5 text-center"><button onclick="window.open('/validar/' + '${m.tokenSeguro}', '_blank')" class="bg-slate-900 text-white text-[10px] font-bold px-2.5 py-1 rounded">🔍 Ver Registro</button></td>
+          <td class="p-2.5 font-bold text-slate-700">${m.curso}</td>
+          <td class="p-2.5 text-center space-x-1">
+            <span class="mr-1">${statusTag}</span>
+            <button onclick="editarMembro('${m.cpfLimpo}')" class="bg-slate-700 hover:bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded">✏️ Editar</button>
+            <button onclick="alternarStatusMembro('${m.cpfLimpo}', ${ativo})" class="${ativo ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white text-[10px] font-bold px-2 py-1 rounded">
+              ${ativo ? '🚫 Desativar' : '✅ Reativar'}
+            </button>
+            <button onclick="window.open('/validar/' + '${m.tokenSeguro}', '_blank')" class="bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded">🔍 Ver Registro</button>
+          </td>
         </tr>`;
       }).join('');
     }
 
     async function carregarUsuarios() {
-      const res = await fetch("/api/usuarios");
-      const dados = await res.json();
-      document.getElementById("tabelaUsuarios").innerHTML = dados.map(u => `
-        <tr class="hover:bg-slate-50">
-          <td class="p-2.5 font-bold">${u.nome}</td>
-          <td class="p-2.5 font-mono">${u.email}</td>
-          <td class="p-2.5"><span class="bg-red-100 text-red-800 font-bold text-[10px] px-2 py-0.5 rounded">${u.nivel}</span></td>
-          <td class="p-2.5 text-slate-500">${u.dataCriacao}</td>
-        </tr>
-      `).join('');
+      try {
+        const res = await fetch("/api/usuarios");
+        const dados = await res.json();
+        document.getElementById("tabelaUsuarios").innerHTML = dados.map(u => `
+          <tr class="hover:bg-slate-50">
+            <td class="p-2.5 font-bold">${u.nome}</td>
+            <td class="p-2.5 font-mono">${u.email}</td>
+            <td class="p-2.5"><span class="bg-red-100 text-red-800 font-bold text-[10px] px-2 py-0.5 rounded">${u.nivel}</span></td>
+            <td class="p-2.5 text-slate-500">${u.dataCriacao}</td>
+          </tr>
+        `).join('');
+      } catch (e) {}
     }
 
     async function carregarLogs() {
-      const res = await fetch("/api/logs");
-      const dados = await res.json();
-      document.getElementById("tabelaLogs").innerHTML = dados.map(l => `
-        <tr class="hover:bg-slate-50">
-          <td class="p-2.5 font-mono text-[11px] text-slate-500">${l.dataHora}</td>
-          <td class="p-2.5 font-bold text-slate-800">${l.usuario}</td>
-          <td class="p-2.5 font-bold text-red-700">${l.acao}</td>
-          <td class="p-2.5 text-slate-600">${l.detalhe}</td>
-        </tr>
-      `).join('');
+      try {
+        const res = await fetch("/api/logs");
+        const dados = await res.json();
+        document.getElementById("tabelaLogs").innerHTML = dados.map(l => `
+          <tr class="hover:bg-slate-50">
+            <td class="p-2.5 font-mono text-[11px] text-slate-500">${l.dataHora}</td>
+            <td class="p-2.5 font-bold text-slate-800">${l.usuario}</td>
+            <td class="p-2.5 font-bold text-red-700">${l.acao}</td>
+            <td class="p-2.5 text-slate-600">${l.detalhe}</td>
+          </tr>
+        `).join('');
+      } catch (e) {}
     }
 
     function filtrarLista() {
