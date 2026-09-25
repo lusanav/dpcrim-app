@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DPCRIM - Painel de Gestão</title>
+  <title>DPCRIM - Painel de Gestão e Consulta</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 min-h-screen flex flex-col justify-between p-4 font-sans text-slate-800">
@@ -28,6 +28,38 @@
           <input type="password" id="senha" value="admin" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
         </div>
         <button type="button" onclick="fazerLogin()" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3.5 rounded-xl text-sm shadow-md transition uppercase">ENTRAR NO PAINEL</button>
+      </div>
+
+      <div class="mt-6 border-t pt-4 text-center">
+        <button type="button" onclick="mostrarConsultaPublica()" class="text-xs text-slate-600 hover:text-red-700 font-bold underline">
+          🔍 Ir para a Consulta Pública de Filiados (por CPF)
+        </button>
+      </div>
+    </div>
+
+    <!-- TELA DE CONSULTA PÚBLICA POR CPF -->
+    <div id="telaConsultaPublica" class="hidden max-w-md w-full bg-white p-6 rounded-2xl shadow-2xl border border-slate-200 text-center">
+      <div class="bg-slate-900 text-white p-4 rounded-xl mb-6">
+        <h1 class="text-xl font-bold uppercase tracking-wide">DPCRIM</h1>
+        <p class="text-xs text-slate-300">Portal Público de Validação de Filiados</p>
+      </div>
+
+      <div class="space-y-4 mb-6">
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-700 mb-1 text-left">Consultar por CPF do Filiado</label>
+          <input type="text" id="buscaCPF" placeholder="Digite o CPF (somente números)" class="w-full p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-red-700">
+        </div>
+        <button type="button" onclick="buscarFiliado()" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3.5 rounded-xl text-sm shadow uppercase">
+          BUSCAR FILIADO
+        </button>
+      </div>
+
+      <div id="resultadoBusca" class="hidden text-left border-t pt-4 space-y-3"></div>
+
+      <div class="mt-6 border-t pt-4">
+        <button type="button" onclick="voltarParaLogin()" class="text-xs text-slate-500 hover:text-slate-800 font-bold">
+          🔒 Área Administrativa (Acesso Restrito)
+        </button>
       </div>
     </div>
 
@@ -200,6 +232,16 @@
       });
     }
 
+    function mostrarConsultaPublica() {
+      document.getElementById("telaLogin").classList.add("hidden");
+      document.getElementById("telaConsultaPublica").classList.remove("hidden");
+    }
+
+    function voltarParaLogin() {
+      document.getElementById("telaConsultaPublica").classList.add("hidden");
+      document.getElementById("telaLogin").classList.remove("hidden");
+    }
+
     function mudarAba(aba) {
       document.getElementById("abaCadastro").classList.toggle("hidden", aba !== "cad");
       document.getElementById("abaLista").classList.toggle("hidden", aba !== "list");
@@ -240,6 +282,38 @@
         }
       } catch (err) {
         alert("Erro ao conectar ao servidor.");
+      }
+    }
+
+    async function buscarFiliado() {
+      const cpf = document.getElementById("buscaCPF").value.trim();
+      if (!cpf) { alert("Digite o CPF."); return; }
+
+      try {
+        const res = await fetch("/api/filiados/buscar?cpf=" + encodeURIComponent(cpf));
+        const data = await res.json();
+        const container = document.getElementById("resultadoBusca");
+        container.classList.remove("hidden");
+
+        if (data.encontrado) {
+          const fotoHtml = data.membro.fotoBase64 ? `<img src="${data.membro.fotoBase64}" class="w-20 h-24 mx-auto rounded-lg object-cover border my-2">` : '';
+          container.innerHTML = `
+            <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 p-3 rounded-xl font-bold text-center text-xs">✅ REGISTRO OFICIAL ENCONTRADO E VÁLIDO</div>
+            ${fotoHtml}
+            <div class="text-xs space-y-1.5 border-t border-b py-3">
+              <p><strong>NOME:</strong> ${data.membro.nome}</p>
+              <p><strong>INSCRIÇÃO:</strong> ${data.membro.inscricao}</p>
+              <p><strong>DOCUMENTO:</strong> ${data.membro.cpfMascarado}</p>
+              <p><strong>CURSO:</strong> ${data.membro.curso}</p>
+              <p><strong>REGISTRO:</strong> ${data.membro.codigo}</p>
+              <p><strong>EMISSÃO:</strong> ${data.membro.dataEmissao}</p>
+              <p><strong>STATUS:</strong> <span class="bg-emerald-200 text-emerald-900 font-bold px-2 py-0.5 rounded text-[10px]">ATIVO</span></p>
+            </div>`;
+        } else {
+          container.innerHTML = `<div class="bg-red-50 border border-red-300 text-red-800 p-3 rounded-xl font-bold text-center text-xs">❌ NENHUM FILIADO ENCONTRADO COM ESTE CPF</div>`;
+        }
+      } catch (e) {
+        alert("Erro ao buscar filiado.");
       }
     }
 
