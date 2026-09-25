@@ -11,7 +11,6 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const CHAVE_SECRETA = process.env.SECRET_KEY || 'DPCRIM_CHAVE_MESTRA_SEGURA_2026';
-// URI corrigida com w=majority
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://lusanaverissimo_db_user:SDFqWrmdmP8dOcht@cluster0.vaj9mqg.mongodb.net/dpcrim_db?retryWrites=true&w=majority';
 
 let client;
@@ -119,7 +118,7 @@ app.post('/api/membros', async (req, res) => {
     const cpfLimpo = (data.cpf || '').replace(/\D/g, '');
     
     if (!cpfLimpo || !data.nome || !data.inscricao || !data.curso) {
-      return res.status(400).json({ success: false, error: 'Preencha os campos obrigatórios (Nome, Inscrição, CPF e Curso).' });
+      return res.status(400).json({ success: false, error: 'Preencha os campos obrigatórios.' });
     }
 
     const host = req.get('host');
@@ -153,7 +152,7 @@ app.post('/api/membros', async (req, res) => {
     return res.json({ success: true, membro, qrCode: qrCodeApi });
   } catch (err) {
     console.error("Erro interno ao salvar membro:", err);
-    return res.status(500).json({ success: false, error: 'Erro interno ao salvar no banco: ' + (err.message || '') });
+    return res.status(500).json({ success: false, error: 'Erro interno ao salvar no banco.' });
   }
 });
 
@@ -184,6 +183,30 @@ app.post('/api/usuarios', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Erro ao salvar usuário no banco.' });
+  }
+});
+
+// NOVA ROTA: Alterar Senha de Usuário
+app.patch('/api/usuarios/senha', async (req, res) => {
+  const { email, novaSenha, operador } = req.body;
+  if (!email || !novaSenha) {
+    return res.status(400).json({ success: false, error: 'E-mail e nova senha são obrigatórios.' });
+  }
+
+  try {
+    const resultado = await usuariosColl.updateOne(
+      { email },
+      { $set: { senha: novaSenha } }
+    );
+
+    if (resultado.matchedCount === 0) {
+      return res.status(404).json({ success: false, error: 'Usuário não encontrado.' });
+    }
+
+    await registrarLog(operador || 'ADMIN', 'Senha Alterada', `E-mail: ${email}`);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Erro ao alterar senha no banco.' });
   }
 });
 
