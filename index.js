@@ -11,7 +11,8 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const CHAVE_SECRETA = process.env.SECRET_KEY || 'DPCRIM_CHAVE_MESTRA_SEGURA_2026';
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://lusanaverissimo_db_user:SDFqWrmdmP8dOcht@cluster0.vaj9mqg.mongodb.net/dpcrim_db?retryWrites=true&w=true';
+// URI corrigida com w=majority
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://lusanaverissimo_db_user:SDFqWrmdmP8dOcht@cluster0.vaj9mqg.mongodb.net/dpcrim_db?retryWrites=true&w=majority';
 
 let client;
 let db;
