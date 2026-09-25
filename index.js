@@ -40,14 +40,13 @@ async function inicializarBanco() {
   }
 }
 
-// Middleware para garantir que o banco esteja pronto em todas as chamadas
 app.use(async (req, res, next) => {
   try {
     await inicializarBanco();
     next();
   } catch (err) {
-    console.error('Erro ao conectar ao MongoDB:', err);
-    res.status(500).json({ success: false, error: 'Erro de conexão com o banco de dados' });
+    console.error('Erro de conexão MongoDB:', err);
+    res.status(500).json({ success: false, error: 'Erro de conexão no banco de dados' });
   }
 });
 
@@ -95,8 +94,7 @@ function validarTokenSeguro(tokenHex) {
   }
 }
 
-// ----------------- ROTAS DA API -----------------
-
+// ENDPOINTS DA API
 app.post('/api/login', async (req, res) => {
   const { email, senha } = req.body;
   try {
