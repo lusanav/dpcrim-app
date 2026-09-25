@@ -5,7 +5,6 @@ const { MongoClient } = require('mongodb');
 
 const app = express();
 
-// Aumenta o limite para imagens pesadas sem estourar o servidor
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -48,7 +47,7 @@ app.use(async (req, res, next) => {
     next();
   } catch (err) {
     console.error('Erro de conexão MongoDB:', err);
-    res.status(500).json({ success: false, error: 'Erro ao conectar ao banco de dados' });
+    res.status(500).json({ success: false, error: 'Erro de conexão com o banco de dados' });
   }
 });
 
@@ -119,7 +118,7 @@ app.post('/api/membros', async (req, res) => {
     const cpfLimpo = (data.cpf || '').replace(/\D/g, '');
     
     if (!cpfLimpo || !data.nome || !data.inscricao || !data.curso) {
-      return res.status(400).json({ success: false, error: 'Preencha os campos obrigatórios.' });
+      return res.status(400).json({ success: false, error: 'Preencha os campos obrigatórios (Nome, Inscrição, CPF e Curso).' });
     }
 
     const host = req.get('host');
@@ -152,8 +151,8 @@ app.post('/api/membros', async (req, res) => {
     const qrCodeApi = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(urlValidacao)}`;
     return res.json({ success: true, membro, qrCode: qrCodeApi });
   } catch (err) {
-    console.error("Erro ao salvar membro:", err);
-    return res.status(500).json({ success: false, error: 'Erro interno ao salvar no banco.' });
+    console.error("Erro interno ao salvar membro:", err);
+    return res.status(500).json({ success: false, error: 'Erro interno ao salvar no banco: ' + (err.message || '') });
   }
 });
 
