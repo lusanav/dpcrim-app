@@ -9,7 +9,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 const CHAVE_SECRETA = process.env.CHAVE_SECRETA || 'DPCRIM_CHAVE_MESTRA_SEGURA_2026';
 const MONGO_URI = process.env.MONGO_URI;
 
-// Conexão com o MongoDB Atlas
 if (MONGO_URI) {
   mongoose.connect(MONGO_URI)
     .then(() => console.log('✅ Conectado ao MongoDB com sucesso!'))
@@ -18,7 +17,6 @@ if (MONGO_URI) {
   console.warn('⚠️ MONGO_URI não definida nas variáveis de ambiente.');
 }
 
-// Schemas do Banco
 const MembroSchema = new mongoose.Schema({
   cpfLimpo: String,
   nome: String,
@@ -101,7 +99,6 @@ function validarTokenSeguro(tokenHex) {
   }
 }
 
-// ROUTE DA PÁGINA INICIAL
 app.get('/', (req, res) => {
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -570,7 +567,6 @@ app.get('/', (req, res) => {
   res.send(html);
 });
 
-// ROUTE CONSULTA PÚBLICA
 app.get('/filiados', (req, res) => {
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -653,7 +649,6 @@ app.get('/filiados', (req, res) => {
   res.send(html);
 });
 
-// ROUTE VALIDAÇÃO QR CODE
 app.get('/validar/:token', async (req, res) => {
   const cpfLimpo = validarTokenSeguro(req.params.token);
   const membro = cpfLimpo ? await Membro.findOne({ cpfLimpo }) : null;
@@ -706,7 +701,6 @@ app.get('/validar/:token', async (req, res) => {
   res.send(html);
 });
 
-// ENDPOINTS DA API
 app.post('/api/login', async (req, res) => {
   const { email, senha } = req.body;
   
@@ -797,7 +791,7 @@ app.get('/api/filiados/buscar', async (req, res) => {
 
 app.use((err, req, res, next) => {
   if (err.type === 'entity.too.large') {
-    return res.status(413).json({ success: false, error: 'A foto enviada excede o limite permitted (10MB).' });
+    return res.status(413).json({ success: false, error: 'A foto enviada excede o limite permitido (10MB).' });
   }
   res.status(500).json({ success: false, error: 'Erro interno no servidor.' });
 });
