@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const path = require('path');
+const { MongoClient } = require('mongodb');
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
@@ -10,30 +11,57 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const CHAVE_SECRETA = process.env.SECRET_KEY || 'DPCRIM_CHAVE_MESTRA_SEGURA_2026';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://lusanaverissimo_db_user:SDFqWrmdmP8dOcht@cluster0.vaj9mqg.mongodb.net/dpcrim_db?retryWrites=true&w=true';
 
-const membrosDB = new Map();
-const usuariosDB = new Map();
-const logsDB = [];
+let db;
+let membrosColl;
+let usuariosColl;
+let logsColl;
 
-// Garantir usuário ADMIN inicial
-usuariosDB.set('admin@dpcrim.org', {
-  nome: 'Administrador DPCRIM',
-  email: 'admin@dpcrim.org',
-  senha: 'admin',
-  nivel: 'ADMIN',
-  dataCriacao: new Date().toLocaleDateString('pt-BR')
-});
+// Conectar ao Banco de Dados MongoDB Atlas
+async function conectarBanco() {
+  try {
+    const client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    db = client.db('dpcrim_db');
+    
+    membrosColl = db.collection('membros');
+    usuariosColl = db.collection('usuarios');
+    logsColl = db.collection('logs');
 
-function registrarLog(usuario, acao, detalhe) {
-  logsDB.unshift({
-    dataHora: new Date().toLocaleString('pt-BR'),
-    usuario: usuario || 'SISTEMA',
-    acao: acao || 'AÇÃO',
-    detalhe: detalhe || ''
-  });
+    // Criar conta de Administrador Padrão se não existir
+    const adminExiste = await usuariosColl.findOne({ email: 'admin@dpcrim.org' });
+    if (!adminExiste) {
+      await usuariosColl.insertOne({
+        nome: 'Administrador DPCRIM',
+        email: 'admin@dpcrim.org',
+        senha: 'admin',
+        nivel: 'ADMIN',
+        dataCriacao: new Date().toLocaleDateString('pt-BR')
+      });
+    }
+
+    console.log('✅ Conectado com sucesso ao MongoDB Atlas (Banco de Dados Permanente)!');
+  } catch (err) {
+    console.error('❌ Erro de conexão com o MongoDB Atlas:', err);
+  }
 }
+conectarBanco();
 
-registrarLog('SISTEMA', 'Servidor Iniciado', 'Aplicações DPCRIM operacionais');
+async function registrarLog(usuario, acao, detalhe) {
+  if (!logsColl) return;
+  try {
+    await logsColl.insertOne({
+      dataHora: new Date().toLocaleString('pt-BR'),
+      usuario: usuario || 'SISTEMA',
+      acao: acao || 'AÇÃO',
+      detalhe: detalhe || '',
+      timestamp: new Date()
+    });
+  } catch (e) {
+    console.error('Erro ao gravar log:', e);
+  }
+}
 
 function mascararCPF(cpf) {
   const limpo = (cpf || '').replace(/\D/g, '');
@@ -65,18 +93,26 @@ function validarTokenSeguro(tokenHex) {
   }
 }
 
-// ENDPOINTS DA API
-app.post('/api/login', (req, res) => {
+// ----------------- ROTAS DA API -----------------
+
+// Login Administrativo
+app.post('/api/login', async (req, res) => {
   const { email, senha } = req.body;
-  if ((email === 'admin@dpcrim.org' && senha === 'admin') || (usuariosDB.has(email) && usuariosDB.get(email).senha === senha)) {
-    registrarLog(email, 'Login efetuado', 'Acesso autenticado com sucesso');
-    return res.json({ success: true });
+  try {
+    const usuario = await usuariosColl.findOne({ email, senha });
+    if (usuario) {
+      await registrarLog(email, 'Login efetuado', 'Acesso autenticado no sistema');
+      return res.json({ success: true });
+    }
+    await registrarLog(email || 'DESCONHECIDO', 'Tentativa de Login Falhou', 'Credenciais incorretas');
+    res.status(401).json({ success: false });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Erro de banco de dados' });
   }
-  registrarLog(email || 'DESCONHECIDO', 'Tentativa de Login Falhou', 'Credenciais incorretas');
-  res.status(401).json({ success: false });
 });
 
-app.post('/api/membros', (req, res) => {
+// Cadastrar Novo Membro
+app.post('/api/membros', async (req, res) => {
   const data = req.body;
   const cpfLimpo = (data.cpf || '').replace(/\D/g, '');
   const codigo = `DPCRIM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -87,6 +123,7 @@ app.post('/api/membros', (req, res) => {
   const urlValidacao = `${protocol}://${host}/validar/${tokenSeguro}`;
 
   const membro = {
+    cpfLimpo,
     nome: data.nome,
     inscricao: data.inscricao,
     cpfMascarado: mascararCPF(data.cpf),
@@ -96,43 +133,86 @@ app.post('/api/membros', (req, res) => {
     codigo,
     fotoBase64: data.fotoBase64 || null,
     dataEmissao: new Date().toLocaleDateString('pt-BR'),
-    tokenSeguro
+    tokenSeguro,
+    dataCriacao: new Date()
   };
 
-  membrosDB.set(cpfLimpo, membro);
-  registrarLog(data.operador || 'ADMIN', 'Membro Cadastrado', `Nome: ${data.nome} | CPF: ${membro.cpfMascarado}`);
+  try {
+    await membrosColl.updateOne({ cpfLimpo }, { $set: membro }, { upsert: true });
+    await registrarLog(data.operador || 'ADMIN', 'Membro Cadastrado', `Nome: ${data.nome} | CPF: ${membro.cpfMascarado}`);
 
-  const qrCodeApi = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(urlValidacao)}`;
-  res.json({ success: true, membro, qrCode: qrCodeApi });
+    const qrCodeApi = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(urlValidacao)}`;
+    res.json({ success: true, membro, qrCode: qrCodeApi });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Erro ao gravar membro no banco' });
+  }
 });
 
-app.post('/api/usuarios', (req, res) => {
+// Cadastrar Novo Usuário Administrativo
+app.post('/api/usuarios', async (req, res) => {
   const { nome, email, senha, nivel, operador } = req.body;
   if (!nome || !email || !senha) return res.status(400).json({ success: false, error: 'Campos obrigatórios ausentes.' });
 
-  usuariosDB.set(email, {
-    nome, email, senha, nivel: nivel || 'OPERADOR', dataCriacao: new Date().toLocaleDateString('pt-BR')
-  });
+  try {
+    await usuariosColl.updateOne(
+      { email },
+      { $set: { nome, email, senha, nivel: nivel || 'OPERADOR', dataCriacao: new Date().toLocaleDateString('pt-BR') } },
+      { upsert: true }
+    );
 
-  registrarLog(operador || 'ADMIN', 'Novo Usuário Criado', `Usuário: ${email}`);
-  res.json({ success: true });
+    await registrarLog(operador || 'ADMIN', 'Novo Usuário Criado', `Usuário: ${email}`);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Erro ao criar usuário' });
+  }
 });
 
-app.get('/api/membros', (req, res) => res.json(Array.from(membrosDB.values())));
-app.get('/api/usuarios', (req, res) => res.json(Array.from(usuariosDB.values())));
-app.get('/api/logs', (req, res) => res.json(logsDB));
+// Buscar Lista de Membros
+app.get('/api/membros', async (req, res) => {
+  try {
+    const lista = await membrosColl.find({}).toArray();
+    res.json(lista);
+  } catch (err) {
+    res.status(500).json([]);
+  }
+});
 
-app.get('/api/filiados/buscar', (req, res) => {
+// Buscar Lista de Usuários
+app.get('/api/usuarios', async (req, res) => {
+  try {
+    const lista = await usuariosColl.find({}, { projection: { senha: 0 } }).toArray();
+    res.json(lista);
+  } catch (err) {
+    res.status(500).json([]);
+  }
+});
+
+// Buscar Logs
+app.get('/api/logs', async (req, res) => {
+  try {
+    const lista = await logsColl.find({}).sort({ timestamp: -1 }).limit(100).toArray();
+    res.json(lista);
+  } catch (err) {
+    res.status(500).json([]);
+  }
+});
+
+// Consulta Pública por CPF
+app.get('/api/filiados/buscar', async (req, res) => {
   const cpfLimpo = (req.query.cpf || '').replace(/\D/g, '');
-  const membro = membrosDB.get(cpfLimpo);
-  if (membro) return res.json({ encontrado: true, membro });
-  res.json({ encontrado: false });
+  try {
+    const membro = await membrosColl.findOne({ cpfLimpo });
+    if (membro) return res.json({ encontrado: true, membro });
+    res.json({ encontrado: false });
+  } catch (err) {
+    res.json({ encontrado: false });
+  }
 });
 
-// PÁGINA DE VALIDAÇÃO DE QR CODE
-app.get('/validar/:token', (req, res) => {
+// Rota de Validação do QR Code
+app.get('/validar/:token', async (req, res) => {
   const cpfLimpo = validarTokenSeguro(req.params.token);
-  const membro = cpfLimpo ? membrosDB.get(cpfLimpo) : null;
+  const membro = cpfLimpo ? await membrosColl.findOne({ cpfLimpo }) : null;
 
   if (!membro) {
     return res.send(`
