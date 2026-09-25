@@ -1,32 +1,68 @@
 const express = require('express');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Leitura da chave secreta via Variável de Ambiente (com fallback de segurança)
 const CHAVE_SECRETA = process.env.CHAVE_SECRETA || 'DPCRIM_CHAVE_MESTRA_SEGURA_2026';
+const DB_FILE = path.join(__dirname, 'database.json');
 
-const membrosDB = new Map();
-const usuariosDB = new Map();
-const logsDB = [];
+// Estrutura inicial do ficheiro JSON
+let dbData = {
+  membros: [],
+  usuarios: [],
+  logs: []
+};
 
-usuariosDB.set('admin@dpcrim.org', {
-  nome: 'Administrador DPCRIM',
-  email: 'admin@dpcrim.org',
-  senha: 'admin',
-  nivel: 'ADMIN',
-  dataCriacao: new Date().toLocaleDateString('pt-BR')
-});
+// Função para carregar os dados salvos no ficheiro
+function carregarDB() {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const data = fs.readFileSync(DB_FILE, 'utf8');
+      dbData = JSON.parse(data);
+    } else {
+      salvarDB(); // Cria o ficheiro inicial se não existir
+    }
+  } catch (err) {
+    console.error('Erro ao ler base de dados:', err);
+  }
+}
+
+// Função para salvar os dados no ficheiro JSON
+function salvarDB() {
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(dbData, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Erro ao salvar base de dados:', err);
+  }
+}
+
+// Carrega os dados ao iniciar o servidor
+carregarDB();
+
+// Garante o utilizador Admin padrão
+if (!dbData.usuarios.find(u => u.email === 'admin@dpcrim.org')) {
+  dbData.usuarios.push({
+    nome: 'Administrador DPCRIM',
+    email: 'admin@dpcrim.org',
+    senha: 'admin',
+    nivel: 'ADMIN',
+    dataCriacao: new Date().toLocaleDateString('pt-BR')
+  });
+  salvarDB();
+}
 
 function registrarLog(usuario, acao, detalhe = '') {
-  logsDB.unshift({
+  dbData.logs.unshift({
     dataHora: new Date().toLocaleString('pt-BR'),
     usuario,
     acao,
     detalhe
   });
+  salvarDB();
 }
 
 registrarLog('SISTEMA', 'Servidor Iniciado', 'Aplicações DPCRIM operacionais');
@@ -632,7 +668,7 @@ app.get('/filiados', (req, res) => {
 // ROUTE VALIDAÇÃO QR CODE
 app.get('/validar/:token', (req, res) => {
   const cpfLimpo = validarTokenSeguro(req.params.token);
-  const membro = cpfLimpo ? membrosDB.get(cpfLimpo) : null;
+  const membro = cpfLimpo ? dbData.membros.find(m => m.cpfLimpo === cpfLimpo) : null;
 
   if (!membro) {
     return res.send(`
@@ -685,8 +721,9 @@ app.get('/validar/:token', (req, res) => {
 // ENDPOINTS DA API
 app.post('/api/login', (req, res) => {
   const { email, senha } = req.body;
+  const usuario = dbData.usuarios.find(u => u.email === email && u.senha === senha);
   
-  if ((email === 'admin@dpcrim.org' && senha === 'admin') || (usuariosDB.has(email) && usuariosDB.get(email).senha === senha)) {
+  if (usuario) {
     registrarLog(email, 'Login efetuado', 'Acesso autenticado com sucesso');
     return res.json({ success: true });
   }
@@ -706,6 +743,7 @@ app.post('/api/membros', (req, res) => {
   const urlValidacao = `${protocol}://${host}/validar/${tokenSeguro}`;
 
   const membro = {
+    cpfLimpo,
     nome: data.nome,
     inscricao: data.inscricao,
     cpfMascarado: mascararCPF(data.cpf),
@@ -718,7 +756,11 @@ app.post('/api/membros', (req, res) => {
     tokenSeguro
   };
 
-  membrosDB.set(cpfLimpo, membro);
+  // Remove duplicados pelo CPF antes de adicionar
+  dbData.membros = dbData.membros.filter(m => m.cpfLimpo !== cpfLimpo);
+  dbData.membros.push(membro);
+  salvarDB();
+
   registrarLog(data.operador || 'ADMIN', 'Membro Cadastrado', `Nome: ${data.nome} | CPF: ${membro.cpfMascarado}`);
 
   const qrCodeApi = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(urlValidacao)}`;
@@ -732,26 +774,28 @@ app.post('/api/usuarios', (req, res) => {
     return res.status(400).json({ success: false, error: 'Campos obrigatórios ausentes.' });
   }
 
-  usuariosDB.set(email, {
+  dbData.usuarios = dbData.usuarios.filter(u => u.email !== email);
+  dbData.usuarios.push({
     nome, email, senha, nivel: nivel || 'OPERADOR', dataCriacao: new Date().toLocaleDateString('pt-BR')
   });
+  salvarDB();
 
   registrarLog(operador || 'ADMIN', 'Novo Usuário Criado', `Usuário: ${email}`);
   res.json({ success: true });
 });
 
-app.get('/api/membros', (req, res) => res.json(Array.from(membrosDB.values())));
+app.get('/api/membros', (req, res) => res.json(dbData.membros));
 
 app.get('/api/usuarios', (req, res) => {
-  const listaSemSenha = Array.from(usuariosDB.values()).map(({ senha, ...rest }) => rest);
+  const listaSemSenha = dbData.usuarios.map(({ senha, ...rest }) => rest);
   res.json(listaSemSenha);
 });
 
-app.get('/api/logs', (req, res) => res.json(logsDB));
+app.get('/api/logs', (req, res) => res.json(dbData.logs));
 
 app.get('/api/filiados/buscar', (req, res) => {
   const cpfLimpo = (req.query.cpf || '').replace(/\D/g, '');
-  const membro = membrosDB.get(cpfLimpo);
+  const membro = dbData.membros.find(m => m.cpfLimpo === cpfLimpo);
   if (membro) return res.json({ encontrado: true, membro });
   res.json({ encontrado: false });
 });
