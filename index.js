@@ -1,11 +1,11 @@
 const express = require('express');
 const crypto = require('crypto');
 const path = require('path');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 
 const app = express();
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -46,7 +46,7 @@ app.use(async (req, res, next) => {
     next();
   } catch (err) {
     console.error('Erro de conexão MongoDB:', err);
-    res.status(500).json({ success: false, error: 'Erro de conexão com o banco de dados' });
+    res.status(500).json({ success: false, error: 'Erro de conexão no banco de dados' });
   }
 });
 
@@ -114,36 +114,55 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/membros', async (req, res) => {
   const data = req.body;
   const cpfLimpo = (data.cpf || '').replace(/\D/g, '');
-  const codigo = `DPCRIM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-  const tokenSeguro = gerarTokenSeguro(cpfLimpo);
+  
+  if (!cpfLimpo || !data.nome || !data.inscricao || !data.curso) {
+    return res.status(400).json({ success: false, error: 'Preencha os campos obrigatórios.' });
+  }
 
   const host = req.get('host');
   const protocol = req.protocol;
-  const urlValidacao = `${protocol}://${host}/validar/${tokenSeguro}`;
-
-  const membro = {
-    cpfLimpo,
-    nome: data.nome,
-    inscricao: data.inscricao,
-    cpfMascarado: mascararCPF(data.cpf),
-    rg: data.rg || 'Não informado',
-    curso: data.curso,
-    cargaHoraria: data.cargaHoraria ? `${data.cargaHoraria}h` : 'Não informada',
-    codigo,
-    fotoBase64: data.fotoBase64 || null,
-    dataEmissao: new Date().toLocaleDateString('pt-BR'),
-    tokenSeguro,
-    dataCriacao: new Date()
-  };
 
   try {
+    const existente = await membrosColl.findOne({ cpfLimpo });
+    const codigo = existente ? existente.codigo : `DPCRIM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const tokenSeguro = existente ? existente.tokenSeguro : gerarTokenSeguro(cpfLimpo);
+    const urlValidacao = `${protocol}://${host}/validar/${tokenSeguro}`;
+
+    const membro = {
+      cpfLimpo,
+      nome: data.nome,
+      inscricao: data.inscricao,
+      cpfMascarado: mascararCPF(data.cpf),
+      rg: data.rg || 'Não informado',
+      curso: data.curso,
+      cargaHoraria: data.cargaHoraria ? `${data.cargaHoraria}h` : 'Não informada',
+      codigo,
+      fotoBase64: data.fotoBase64 || (existente ? existente.fotoBase64 : null),
+      dataEmissao: existente ? existente.dataEmissao : new Date().toLocaleDateString('pt-BR'),
+      tokenSeguro,
+      ativo: data.ativo !== undefined ? data.ativo : (existente && existente.ativo !== undefined ? existente.ativo : true),
+      dataAtualizacao: new Date()
+    };
+
     await membrosColl.updateOne({ cpfLimpo }, { $set: membro }, { upsert: true });
-    await registrarLog(data.operador || 'ADMIN', 'Membro Cadastrado', `Nome: ${data.nome} | CPF: ${membro.cpfMascarado}`);
+    await registrarLog(data.operador || 'ADMIN', existente ? 'Membro Atualizado' : 'Membro Cadastrado', `Nome: ${data.nome} | CPF: ${membro.cpfMascarado}`);
 
     const qrCodeApi = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(urlValidacao)}`;
     res.json({ success: true, membro, qrCode: qrCodeApi });
   } catch (err) {
-    res.status(500).json({ success: false, error: 'Erro ao salvar membro' });
+    res.status(500).json({ success: false, error: 'Erro ao salvar membro no banco.' });
+  }
+});
+
+// Alterar Estado do Membro (Ativar / Desativar)
+app.patch('/api/membros/status', async (req, res) => {
+  const { cpfLimpo, ativo, operador } = req.body;
+  try {
+    await membrosColl.updateOne({ cpfLimpo }, { $set: { ativo: !!ativo } });
+    await registrarLog(operador || 'ADMIN', ativo ? 'Membro Reativado' : 'Membro Desativado', `CPF: ${cpfLimpo}`);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Erro ao alterar estado do membro.' });
   }
 });
 
@@ -162,8 +181,7 @@ app.post('/api/usuarios', async (req, res) => {
     await registrarLog(operador || 'ADMIN', 'Novo Usuário Criado', `Usuário: ${email}`);
     res.json({ success: true });
   } catch (err) {
-    console.error('Erro ao cadastrar usuario:', err);
-    res.status(500).json({ success: false, error: err.message || 'Erro interno ao salvar no banco' });
+    res.status(500).json({ success: false, error: 'Erro ao salvar usuário no banco.' });
   }
 });
 
@@ -205,6 +223,7 @@ app.get('/api/filiados/buscar', async (req, res) => {
   }
 });
 
+// Validação de QR Code
 app.get('/validar/:token', async (req, res) => {
   const cpfLimpo = validarTokenSeguro(req.params.token);
   const membro = cpfLimpo ? await membrosColl.findOne({ cpfLimpo }) : null;
@@ -215,6 +234,31 @@ app.get('/validar/:token', async (req, res) => {
         <h1 style="color:#dc2626;">❌ CREDENCIAL INVÁLIDA OU ADULTERADA</h1>
         <p style="color:#7f1d1d; font-size:14px;">A assinatura digital deste QR Code falhou na verificação do DPCRIM.</p>
       </body>
+    `);
+  }
+
+  if (membro.ativo === false) {
+    return res.send(`
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="UTF-8">
+        <title>DPCRIM - Credencial Inativa</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+      </head>
+      <body class="bg-red-50 min-h-screen flex items-center justify-center p-4 font-sans">
+        <div class="max-w-sm w-full bg-white p-6 rounded-2xl shadow-xl border border-red-200 text-center space-y-4">
+          <div class="bg-red-600 text-white font-bold p-3 rounded-xl text-xs uppercase">⚠️ CREDENCIAL SUSPENSA / INATIVA</div>
+          <h2 class="text-slate-900 font-black text-xl">DPCRIM</h2>
+          <p class="text-xs text-slate-600">Este registo de filiado encontra-se suspenso no sistema oficial do DPCRIM.</p>
+          <div class="text-left text-xs bg-slate-50 p-3 rounded-lg border space-y-1">
+            <p><strong>NOME:</strong> ${membro.nome}</p>
+            <p><strong>REGISTRO:</strong> ${membro.codigo}</p>
+            <p><strong>STATUS:</strong> <span class="text-red-600 font-bold">CANCELADO / DESATIVADO</span></p>
+          </div>
+        </div>
+      </body>
+      </html>
     `);
   }
 
